@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { SkillMatcher } from '../../src/skills/matcher.js';
 import { AppConfig } from '../../src/config/index.js';
 import { Skill } from '../../src/skills/types.js';
+import fs from 'fs/promises';
 
 describe('SkillMatcher', () => {
   const dummyConfig: AppConfig = {
@@ -16,47 +17,49 @@ describe('SkillMatcher', () => {
   };
 
   const dummySkills: Skill[] = [
-    { name: 'caveman', description: 'terse output style', content: 'terse' },
-    { name: 'ponytail', description: 'walk decision ladder before writing code', content: 'ladder' },
+    { name: 'coding-efficiency', description: 'always active', content: 'efficient' },
+    { name: 'nextjs-conventions', description: 'next conventions', content: 'next-rules' },
+    { name: 'other-skill', description: 'other behavior', content: 'other-rules' },
   ];
-
-  const mockFetch = vi.fn();
-  beforeEach(() => {
-    global.fetch = mockFetch;
-  });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('should match skills successfully using the fast model provider', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        choices: [
-          {
-            message: {
-              content: '["caveman"]',
-            },
-          },
-        ],
-      }),
-    });
+  it('should always match coding-efficiency if present', async () => {
+    vi.spyOn(fs, 'readFile').mockRejectedValue(new Error('ENOENT'));
 
     const matcher = new SkillMatcher(dummyConfig);
-    const matched = await matcher.matchSkills('Make explanations very short and concise', dummySkills);
+    const matched = await matcher.matchSkills('Just clean my code', dummySkills);
 
     expect(matched).toHaveLength(1);
-    expect(matched[0].name).toBe('caveman');
+    expect(matched[0].name).toBe('coding-efficiency');
   });
 
-  it('should fall back to keyword matching if provider throws', async () => {
-    mockFetch.mockRejectedValue(new Error('Network error'));
+  it('should match nextjs-conventions if next dependency is in package.json', async () => {
+    vi.spyOn(fs, 'readFile').mockResolvedValue(JSON.stringify({
+      dependencies: {
+        next: '^14.0.0',
+      },
+    }));
 
     const matcher = new SkillMatcher(dummyConfig);
-    const matched = await matcher.matchSkills('I want caveman style output', dummySkills);
+    const matched = await matcher.matchSkills('Deploy the server', dummySkills);
 
-    expect(matched).toHaveLength(1);
-    expect(matched[0].name).toBe('caveman');
+    expect(matched).toHaveLength(2);
+    expect(matched.map(s => s.name)).toContain('coding-efficiency');
+    expect(matched.map(s => s.name)).toContain('nextjs-conventions');
+  });
+
+  it('should match other skills via keyword in task description', async () => {
+    vi.spyOn(fs, 'readFile').mockRejectedValue(new Error('ENOENT'));
+
+    const matcher = new SkillMatcher(dummyConfig);
+    const matched = await matcher.matchSkills('Use other-skill please', dummySkills);
+
+    expect(matched).toHaveLength(2);
+    expect(matched.map(s => s.name)).toContain('coding-efficiency');
+    expect(matched.map(s => s.name)).toContain('other-skill');
   });
 });
+

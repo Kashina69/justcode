@@ -3,6 +3,7 @@ import path from 'path';
 import { getProviderForAlias } from '../providers/factory.js';
 import { AppConfig } from '../config/index.js';
 import { readPromptSync } from '../config/prompts.js';
+import { parseSkillFile } from '../skills/parser.js';
 
 export interface PlanList {
   active: string[];
@@ -29,6 +30,63 @@ export class PlanningManager {
   }
 
   /**
+   * Loads custom planner skill from skills folder, falling back to static prompt file.
+   */
+  private async loadPlannerSkill(skillName: string, fallbackPromptFile: string): Promise<string> {
+    try {
+      const skillPath = path.join(this.projectRoot, 'skills', skillName, 'SKILL.md');
+      const raw = await fs.readFile(skillPath, 'utf-8');
+      const parsed = parseSkillFile(raw);
+      if (parsed) {
+        return parsed.content;
+      }
+    } catch {
+      // Fallback
+    }
+    return readPromptSync(fallbackPromptFile);
+  }
+
+  /**
+   * Loads project memory (.agent/memory.md) and analyzed files (agent/) to provide grounding context.
+   */
+  private async loadImprovisationContext(): Promise<string> {
+    let context = '';
+
+    // 1. Load project memory
+    try {
+      const memoryPath = path.join(this.projectRoot, '.agent', 'memory.md');
+      const memory = await fs.readFile(memoryPath, 'utf-8');
+      if (memory.trim()) {
+        context += `\n### Project Memory (Timeline of decisions):\n${memory.trim()}\n`;
+      }
+    } catch {
+      // Memory file may not exist yet
+    }
+
+    // 2. Load codebase analysis files made by analyze skill
+    const analyzeFiles = [
+      { name: 'project-overview.md', path: path.join(this.projectRoot, 'agent', 'project-overview.md') },
+      { name: 'folder-structure.md', path: path.join(this.projectRoot, 'agent', 'folder-structure.md') },
+      { name: 'code-conventions.md', path: path.join(this.projectRoot, 'agent', 'code-conventions.md') },
+    ];
+
+    let hasAnalyzeData = false;
+    for (const file of analyzeFiles) {
+      try {
+        const content = await fs.readFile(file.path, 'utf-8');
+        if (content.trim()) {
+          context += `\n### Codebase Analysis context (${file.name}):\n${content.trim()}\n`;
+          hasAnalyzeData = true;
+        }
+      } catch {
+        // File may not exist yet
+      }
+    }
+
+    return context;
+  }
+
+  /**
    * Generates a rough draft plan using the fast LLM provider.
    * 
    * @param goal The target developer goal description.
@@ -36,12 +94,16 @@ export class PlanningManager {
    */
   async draftPlan(goal: string): Promise<string> {
     const provider = getProviderForAlias('fast', this.config);
+    const systemPrompt = await this.loadPlannerSkill('planner', 'planner_draft_system.txt');
+    const codebaseContext = await this.loadImprovisationContext();
 
-    const systemPrompt = readPromptSync('planner_draft_system.txt');
+    const userContent = codebaseContext
+      ? `Here is the codebase overview, folder structure, code conventions, and project memory context to help ground your plan:\n${codebaseContext}\n\nGoal: "${goal}"`
+      : `Goal: "${goal}"`;
 
     const response = await provider.complete({
       systemPrompt,
-      messages: [{ role: 'user', content: `Goal: "${goal}"` }],
+      messages: [{ role: 'user', content: userContent }],
       availableTools: [],
       modelAlias: 'fast',
     });
@@ -57,12 +119,16 @@ export class PlanningManager {
    */
   async critiqueAndRewrite(draft: string): Promise<string> {
     const provider = getProviderForAlias('smart', this.config);
+    const systemPrompt = await this.loadPlannerSkill('plan_review', 'planner_critique_system.txt');
+    const codebaseContext = await this.loadImprovisationContext();
 
-    const systemPrompt = readPromptSync('planner_critique_system.txt');
+    const userContent = codebaseContext
+      ? `Here is the codebase overview, folder structure, code conventions, and project memory context to help ground your plan review:\n${codebaseContext}\n\nDraft Plan:\n${draft}`
+      : `Draft Plan:\n${draft}`;
 
     const response = await provider.complete({
       systemPrompt,
-      messages: [{ role: 'user', content: `Draft Plan:\n${draft}` }],
+      messages: [{ role: 'user', content: userContent }],
       availableTools: [],
       modelAlias: 'smart',
     });

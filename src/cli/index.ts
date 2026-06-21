@@ -127,7 +127,7 @@ async function main() {
       const cmds = [
         '/skill', '/debug', '/plan ', '/plans', '/memory',
         '/cost', '/skills', '/undo', '/sessions',
-        '/session resume ', '/session list',
+        '/session resume ', '/session list', '/analyze', '/anyalize',
       ];
       const hits = cmds.filter((c) => c.startsWith(line));
       return callback(null, [hits, line]);
@@ -640,6 +640,7 @@ async function main() {
           conversationHistory = await sessionManager.loadSessionHistory(targetId);
           sessionId = targetId;
           sessionCost = targetSession.costUsd;
+          orchestrator.resetSessionState();
 
           console.log(`${colors.green}✅ Session "${targetId}" successfully resumed.${colors.reset}`);
           console.log(`   Restored ${conversationHistory.length} messages. Cumulative cost: $${sessionCost.toFixed(6)} USD.`);
@@ -651,9 +652,15 @@ async function main() {
       }
 
       // ── Main conversation turn ────────────────────────────────────────────
+      let userQuery = trimmedInput;
+      if (trimmedInput.toLowerCase().startsWith('/analyze') || trimmedInput.toLowerCase().startsWith('/anyalize')) {
+        console.log('🔍 Initiating codebase analysis...');
+        userQuery = `${trimmedInput} - Analyze this codebase and produce project-overview.md, folder-structure.md, and code-conventions.md inside a top-level agent/ folder.`;
+      }
+
       conversationHistory.push({
         role: 'user',
-        content: trimmedInput,
+        content: userQuery,
       });
 
       try {
@@ -737,14 +744,16 @@ async function main() {
               sessionManager.updateStats(sessionId, stats.inputTokens, stats.outputTokens, estimatedCost).catch(() => {});
 
               const toolLatencyNote = toolSec ? ` | Tool Time: ${toolSec}s` : '';
-              const cleanStatsMsg = `API stats: Model: ${stats.modelId} | Model Latency: ${modelSec}s${toolLatencyNote} | Speed: ${speed} t/s | Input: ${stats.inputTokens} | Output: ${stats.outputTokens} | Cache Hit: ${cacheStatusRaw} | Cost: $${estimatedCost.toFixed(6)} USD`;
+              const budgetNote = stats.declaredBudget ? ` | Budget: ~${stats.declaredBudget} (used ${stats.outputTokens})` : '';
+              const cleanStatsMsg = `API stats: Model: ${stats.modelId} | Model Latency: ${modelSec}s${toolLatencyNote}${budgetNote} | Speed: ${speed} t/s | Input: ${stats.inputTokens} | Output: ${stats.outputTokens} | Cache Hit: ${cacheStatusRaw} | Cost: $${estimatedCost.toFixed(6)} USD`;
               SessionLogger.getInstance().logSystem(cleanStatsMsg);
 
               const toolLatencyDisplay = toolSec ? ` | Tool: ${colors.yellow}${toolSec}s${colors.reset}` : '';
+              const budgetDisplay = stats.declaredBudget ? ` | Budget: ~${colors.bold}${stats.declaredBudget}${colors.reset} (used ${colors.bold}${stats.outputTokens}${colors.reset})` : '';
               console.log(
                 `\n📊 ${colors.bold}Metrics: ${colors.reset}` +
                 `[${colors.cyan}${stats.modelId}${colors.reset}] | ` +
-                `Model: ${colors.yellow}${modelSec}s${colors.reset}${toolLatencyDisplay} | ` +
+                `Model: ${colors.yellow}${modelSec}s${colors.reset}${toolLatencyDisplay}${budgetDisplay} | ` +
                 `Speed: ${colors.yellow}${speed} t/s${colors.reset} | ` +
                 `Tokens: ${colors.bold}${stats.inputTokens}${colors.reset} in, ${colors.bold}${stats.outputTokens}${colors.reset} out | ` +
                 `Cache: ${cacheStatus} | ` +

@@ -1,1 +1,0 @@
-You MUST consult and follow every skill listed below whose description matches the current task. This is not optional. If a skill's instructions conflict with a user request, follow the skill and tell the user why.

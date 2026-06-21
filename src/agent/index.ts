@@ -19,6 +19,16 @@ import { logTokenUsage } from '../memory/global.js';
 import { ProjectMemoryManager } from '../memory/project.js';
 import { readPromptSync, readTemplateSync } from '../config/prompts.js';
 
+export interface TurnMetrics {
+  declaredBudget: string | null;
+  actualOutputTokens: number;
+}
+
+export function buildCalibrationNote(previousTurn: TurnMetrics | null): string {
+  if (!previousTurn || !previousTurn.declaredBudget) return '';
+  return `[prior turn: declared ~${previousTurn.declaredBudget}, used ${previousTurn.actualOutputTokens}]`;
+}
+
 export interface AgentOptions {
   config: AppConfig;
   registry: ToolRegistry;
@@ -44,6 +54,8 @@ export class AgentOrchestrator {
   private skillsLoaded = false;
   private pinnedSkills: Set<string>;
   private mutedSkills: Set<string>;
+  private lastTurnMetrics: TurnMetrics | null = null;
+  private cachedActiveSkills: Skill[] | null = null;
   // Template strings loaded once at construction — editable in templates/ without touching code
   private readonly planInjectionHeader: string;
   private readonly skillInjectionHeader: string;
@@ -60,11 +72,25 @@ export class AgentOrchestrator {
     this.backupManager = options.backupManager;
     this.onConfirmDangerousTool = options.onConfirmDangerousTool;
     this.projectMemory = new ProjectMemoryManager(this.config);
-    this.systemPrompt = options.systemPrompt || readPromptSync('agent_system.txt');
+    
+    const platform = process.platform;
+    const shellHint = platform === 'win32'
+      ? 'Windows — use cmd-compatible commands (dir, del, if exist) or explicit `powershell -Command "..."` for anything else'
+      : 'POSIX — use standard Unix commands (ls, rm, &&)';
+    this.systemPrompt = (options.systemPrompt || readPromptSync('agent_system.txt')) + `\n\nHost: ${platform} — ${shellHint}`;
+
     this.pinnedSkills = options.pinnedSkills ?? new Set();
     this.mutedSkills = options.mutedSkills ?? new Set();
     this.planInjectionHeader = readTemplateSync('plan_injection_header.txt');
-    this.skillInjectionHeader = readTemplateSync('skill_injection_header.txt');
+    this.skillInjectionHeader = readTemplateSync('manual_skill_header.txt');
+  }
+
+  /**
+   * Resets the turn metrics (e.g. when resuming a session) to start calibration clean.
+   */
+  public resetSessionState(): void {
+    this.lastTurnMetrics = null;
+    this.cachedActiveSkills = null;
   }
 
   /**
@@ -138,8 +164,10 @@ export class AgentOrchestrator {
         toolExecutionLatencyMs?: number;
         cacheHit?: boolean;
         thinkingContent?: string;
+        declaredBudget?: string | null;
       };
-    }) => void
+    }) => void,
+    isRecursive = false
   ): Promise<ConversationMessage[]> {
     const availableTools = this.registry.getToolDefinitions();
 
@@ -168,31 +196,42 @@ export class AgentOrchestrator {
 
     // 5. Resolve semantically relevant skills
     const matchStart = Date.now();
-    const matcher = new SkillMatcher(this.config);
-    let matchedSkills = await matcher.matchSkills(taskDescription, this.skills);
+    if (!isRecursive) {
+      this.cachedActiveSkills = null;
+    }
 
-    // Apply pin/mute overrides from session state
-    matchedSkills = matchedSkills.filter((s) => !this.mutedSkills.has(s.name));
-    for (const pinnedName of this.pinnedSkills) {
-      if (!matchedSkills.find((s) => s.name === pinnedName)) {
-        const pinned = this.skills.find((s) => s.name === pinnedName);
-        if (pinned) matchedSkills.push(pinned);
+    if (!this.cachedActiveSkills) {
+      const matcher = new SkillMatcher(this.config);
+      let matchedSkills = await matcher.matchSkills(taskDescription, this.skills);
+
+      // Apply pin/mute overrides from session state
+      matchedSkills = matchedSkills.filter((s) => !this.mutedSkills.has(s.name));
+      for (const pinnedName of this.pinnedSkills) {
+        if (!matchedSkills.find((s) => s.name === pinnedName)) {
+          const pinned = this.skills.find((s) => s.name === pinnedName);
+          if (pinned) matchedSkills.push(pinned);
+        }
+      }
+      this.cachedActiveSkills = matchedSkills;
+
+      if (!isRecursive) {
+        const pinMuteSummary = [
+          this.pinnedSkills.size > 0 ? `+pinned:${[...this.pinnedSkills].join(',')}` : '',
+          this.mutedSkills.size > 0 ? `-muted:${[...this.mutedSkills].join(',')}` : '',
+        ].filter(Boolean).join(' ');
+
+        onProgress?.({
+          type: 'flow_event',
+          label: 'skill_match',
+          detail: `${this.skills.length} skills evaluated → ${matchedSkills.length} active` +
+            (matchedSkills.length > 0 ? ` [${matchedSkills.map((s) => s.name).join(', ')}]` : '') +
+            (pinMuteSummary ? ` ${pinMuteSummary}` : ''),
+          durationMs: Date.now() - matchStart,
+        });
       }
     }
 
-    const pinMuteSummary = [
-      this.pinnedSkills.size > 0 ? `+pinned:${[...this.pinnedSkills].join(',')}` : '',
-      this.mutedSkills.size > 0 ? `-muted:${[...this.mutedSkills].join(',')}` : '',
-    ].filter(Boolean).join(' ');
-
-    onProgress?.({
-      type: 'flow_event',
-      label: 'skill_match',
-      detail: `${this.skills.length} skills evaluated → ${matchedSkills.length} active` +
-        (matchedSkills.length > 0 ? ` [${matchedSkills.map((s) => s.name).join(', ')}]` : '') +
-        (pinMuteSummary ? ` ${pinMuteSummary}` : ''),
-      durationMs: Date.now() - matchStart,
-    });
+    const matchedSkills = this.cachedActiveSkills;
 
     // 6. Inject project memory, active plans, and matched skills into system prompt
     let activeSystemPrompt = this.systemPrompt;
@@ -234,6 +273,39 @@ export class AgentOrchestrator {
       detail: `→ ${resolvedAlias} (${resolvedModelId})`,
     });
 
+    // Prepend calibration note to the last user message if available
+    let activeMessages = [...messages];
+    if (this.lastTurnMetrics) {
+      const calibrationNote = buildCalibrationNote(this.lastTurnMetrics);
+      if (calibrationNote) {
+        const lastUserIdx = activeMessages.map((m) => m.role).lastIndexOf('user');
+        if (lastUserIdx !== -1) {
+          const originalMsg = activeMessages[lastUserIdx];
+          const clonedMsg = { ...originalMsg };
+          if (typeof clonedMsg.content === 'string') {
+            clonedMsg.content = calibrationNote + '\n' + clonedMsg.content;
+          } else if (Array.isArray(clonedMsg.content)) {
+            const contentCopy = [...clonedMsg.content];
+            const firstText = contentCopy.find((b) => b.type === 'text');
+            if (firstText && firstText.type === 'text') {
+              const idx = contentCopy.indexOf(firstText);
+              contentCopy[idx] = {
+                type: 'text',
+                text: calibrationNote + '\n' + firstText.text,
+              };
+            } else {
+              contentCopy.unshift({
+                type: 'text',
+                text: calibrationNote,
+              });
+            }
+            clonedMsg.content = contentCopy;
+          }
+          activeMessages[lastUserIdx] = clonedMsg;
+        }
+      }
+    }
+
     // Call the model provider (track model-only latency)
     onProgress?.({ type: 'request_start' });
     let result;
@@ -241,7 +313,7 @@ export class AgentOrchestrator {
     try {
       result = await provider.complete({
         systemPrompt: activeSystemPrompt,
-        messages,
+        messages: activeMessages,
         availableTools,
         modelAlias: resolvedAlias,
       });
@@ -249,6 +321,16 @@ export class AgentOrchestrator {
       onProgress?.({ type: 'request_end' });
     }
     const modelLatencyMs = Date.now() - modelStartMs;
+
+    // Parse budget declaration from response
+    const budgetMatch = result.textContent ? result.textContent.match(/^\s*\[budget:\s*(.+?)\]/i) : null;
+    const declaredBudget = budgetMatch ? budgetMatch[1].trim() : null;
+
+    // Store turn metrics for calibration of the next turn
+    this.lastTurnMetrics = {
+      declaredBudget,
+      actualOutputTokens: result.tokenUsage.outputTokens,
+    };
 
     // 7. Log token usage
     await logTokenUsage(
@@ -277,6 +359,7 @@ export class AgentOrchestrator {
           toolExecutionLatencyMs: 0,
           cacheHit: result.cacheHit,
           thinkingContent: result.thinkingContent,
+          declaredBudget,
         },
       });
     }
@@ -384,7 +467,7 @@ export class AgentOrchestrator {
     });
 
     // Recurse to let the assistant inspect the tool results and continue
-    return this.runTurn(conversation, onProgress);
+    return this.runTurn(conversation, onProgress, true);
   }
 
   /**
