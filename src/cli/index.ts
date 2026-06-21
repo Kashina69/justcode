@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import readline from 'readline';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import os from 'os';
 import path from 'path';
 import { loadAppConfig, writeAppConfig, getGlobalConfigPath, AppConfig } from '../config/index.js';
@@ -16,6 +17,7 @@ import { SessionLogger } from '../memory/logger.js';
 import { CliSpinner } from './spinner.js';
 import { BashTool } from '../tools/bash.js';
 import { SessionManager } from '../memory/session.js';
+import { buildIgnoreFilter } from './gitignore-filter.js';
 
 function askQuestion(rl: readline.Interface, query: string): Promise<string> {
   return new Promise((resolve) => {
@@ -85,9 +87,79 @@ async function runOnboarding(rl: readline.Interface): Promise<AppConfig> {
 async function main() {
   console.log('\n=== 🤖 JUSTC0D3 🤖 ===\n');
 
+  // ── Session-scoped state ──────────────────────────────────────────────────
+  const pinnedSkills = new Set<string>();    // skills always injected regardless of matcher
+  const mutedSkills = new Set<string>();     // skills always excluded regardless of matcher
+  let debugMode = true;                      // flow log trace — on by default, /debug off to disable
+  let lastCollapsedOutput: string | null = null; // last tool output that was folded
+  let skillNames: string[] = [];             // populated async on startup for tab completion
+
+  // Build gitignore filter for tab completion
+  const isIgnored = buildIgnoreFilter(process.cwd());
+
+  // ── Tab completer ─────────────────────────────────────────────────────────
+  function completer(
+    line: string,
+    callback: (err: any, result: [string[], string]) => void
+  ): void {
+    const words = line.trimStart().split(/\s+/);
+    const lastWord = words[words.length - 1] ?? '';
+
+    // /skill pin <name> or /skill mute <name> → complete skill names
+    const skillArgMatch = line.match(/^\/(skill)\s+(pin|mute)\s+(\S*)$/);
+    if (skillArgMatch) {
+      const partial = skillArgMatch[3];
+      const prefix = line.slice(0, line.length - partial.length);
+      const hits = skillNames.filter((n) => n.startsWith(partial)).map((n) => prefix + n);
+      return callback(null, [hits.length ? hits : [], line]);
+    }
+
+    // /skill with no subcommand → suggest subcommands
+    if (/^\/skill\s*$/.test(line)) {
+      return callback(null, [
+        ['/skill list', '/skill pin ', '/skill mute ', '/skill reset'],
+        line,
+      ]);
+    }
+
+    // General slash command completions (no space yet)
+    if (line.startsWith('/') && words.length === 1) {
+      const cmds = [
+        '/skill', '/debug', '/plan ', '/plans', '/memory',
+        '/cost', '/skills', '/undo', '/sessions',
+        '/session resume ', '/session list',
+      ];
+      const hits = cmds.filter((c) => c.startsWith(line));
+      return callback(null, [hits, line]);
+    }
+
+    // File path autocomplete: last token looks like a path
+    if (lastWord.includes('/') || lastWord.startsWith('./') || lastWord.startsWith('src')) {
+      try {
+        const dir = path.dirname(lastWord) || '.';
+        const base = path.basename(lastWord);
+        const absDir = path.join(process.cwd(), dir);
+        const entries = fsSync.readdirSync(absDir, { withFileTypes: true });
+        const hits = entries
+          .filter((e) => e.name.startsWith(base) && !isIgnored(path.join(dir, e.name)))
+          .map((e) => {
+            const rel = path.join(dir, e.name).replace(/\\/g, '/');
+            const suffix = e.isDirectory() ? '/' : '';
+            return words.slice(0, -1).concat([rel + suffix]).join(' ');
+          });
+        return callback(null, [hits, line]);
+      } catch {
+        return callback(null, [[], line]);
+      }
+    }
+
+    callback(null, [[], line]);
+  }
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
+    completer,
   });
 
   const spinner = new CliSpinner();
@@ -117,7 +189,6 @@ async function main() {
   } else if (
     activeSmartConfig.provider === 'openai-compat' &&
     !config.openaiApiKey &&
-    // Allow local endpoints (e.g. Ollama, localhost) to run without keys
     !config.openaiEndpoint?.includes('localhost') &&
     !config.openaiEndpoint?.includes('127.0.0.1')
   ) {
@@ -137,6 +208,11 @@ async function main() {
   const planningManager = new PlanningManager(config);
   const skillLoader = new SkillLoader();
 
+  // Preload skill names asynchronously for tab completion
+  skillLoader.loadSkills().then((skills) => {
+    skillNames = skills.map((s) => s.name);
+  }).catch(() => {});
+
   const colors = {
     reset: '\x1b[0m',
     bold: '\x1b[1m',
@@ -151,6 +227,8 @@ async function main() {
     gray: '\x1b[90m',
   };
 
+  const COLLAPSE_THRESHOLD = 15; // lines before folding tool output
+
   /**
    * Estimates cost based on public pricing models, incorporating prompt caching details.
    */
@@ -159,7 +237,7 @@ async function main() {
     let cost = 0;
 
     if (modelLower.includes('sonnet')) {
-      const inputCostRate = cacheHit ? 0.3 : 3.0; // Cache read vs normal input ($3/M vs $0.3/M)
+      const inputCostRate = cacheHit ? 0.3 : 3.0;
       cost = (inputTokens * inputCostRate + outputTokens * 15.0) / 1_000_000;
     } else if (modelLower.includes('haiku')) {
       const inputCostRate = cacheHit ? 0.08 : 0.8;
@@ -184,10 +262,6 @@ async function main() {
 
   /**
    * Prompts the developer for manual confirmation on dangerous actions.
-   * 
-   * @param toolCall The requested tool execution details.
-   * @param reason The reason why the action is classified as dangerous.
-   * @returns A promise resolving to true if confirmed, false otherwise.
    */
   const onConfirmDangerousTool = (toolCall: ToolCall, reason: string): Promise<boolean> => {
     if (spinner.active()) {
@@ -218,6 +292,8 @@ async function main() {
     safetyGate,
     backupManager,
     onConfirmDangerousTool,
+    pinnedSkills,
+    mutedSkills,
   });
 
   let conversationHistory: ConversationMessage[] = [];
@@ -244,7 +320,6 @@ async function main() {
         console.error('⚠️  Failed to save project memory:', err.message || err);
       }
     }
-    // Clean up background servers/processes spawned in this session
     BashTool.cleanup();
     console.log('Goodbye!');
     process.exit(0);
@@ -299,12 +374,27 @@ async function main() {
         return;
       }
 
+      // ── exit / quit ──────────────────────────────────────────────────────
       if (trimmedInput.toLowerCase() === 'exit' || trimmedInput.toLowerCase() === 'quit') {
         rl.close();
         await saveSessionMemoryAndExit();
         return;
       }
 
+      // ── e / expand: show last collapsed tool output ──────────────────────
+      if (
+        (trimmedInput.toLowerCase() === 'e' || trimmedInput.toLowerCase() === 'expand') &&
+        lastCollapsedOutput !== null
+      ) {
+        console.log(`\n${colors.dim}━━━ Full Output ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}`);
+        console.log(lastCollapsedOutput);
+        console.log(`${colors.dim}━━━ End Output ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${colors.reset}`);
+        lastCollapsedOutput = null;
+        promptUser();
+        return;
+      }
+
+      // ── /undo ────────────────────────────────────────────────────────────
       if (trimmedInput.toLowerCase() === '/undo') {
         const success = await backupManager.undoLast();
         if (success) {
@@ -316,24 +406,27 @@ async function main() {
         return;
       }
 
-      // Handle /cost command
+      // ── /cost ────────────────────────────────────────────────────────────
       if (trimmedInput.toLowerCase() === '/cost') {
         await printCostSummary();
         promptUser();
         return;
       }
 
-      // Handle /skills command
+      // ── /skills (list available skills) ─────────────────────────────────
       if (trimmedInput.toLowerCase() === '/skills') {
         try {
           const skills = await skillLoader.loadSkills();
-          console.log('\n💡 Loaded Skills:');
+          skillNames = skills.map((s) => s.name); // keep completer in sync
+          console.log('\n💡 Available Skills:');
           if (skills.length === 0) {
             console.log('  (none)');
           } else {
             skills.forEach((s) => {
-              console.log(`  - Name: "${s.name}"`);
-              console.log(`    Description: ${s.description}`);
+              const pinned = pinnedSkills.has(s.name) ? ` ${colors.green}[PINNED]${colors.reset}` : '';
+              const muted = mutedSkills.has(s.name) ? ` ${colors.red}[MUTED]${colors.reset}` : '';
+              console.log(`  - ${colors.bold}${s.name}${colors.reset}${pinned}${muted}`);
+              console.log(`    ${colors.dim}${s.description}${colors.reset}`);
             });
           }
         } catch (err: any) {
@@ -343,7 +436,61 @@ async function main() {
         return;
       }
 
-      // Handle /memory command
+      // ── /skill pin|mute|list|reset ───────────────────────────────────────
+      if (trimmedInput.toLowerCase().startsWith('/skill')) {
+        const parts = trimmedInput.split(/\s+/);
+        const sub = parts[1]?.toLowerCase();
+        const name = parts[2]?.toLowerCase();
+
+        if (sub === 'list' || !sub) {
+          console.log('\n💡 Skill Status:');
+          if (skillNames.length === 0) {
+            console.log('  (no skills loaded — run /skills first)');
+          } else {
+            for (const n of skillNames) {
+              const pinTag = pinnedSkills.has(n) ? ` ${colors.green}[PINNED — always active]${colors.reset}` : '';
+              const muteTag = mutedSkills.has(n) ? ` ${colors.red}[MUTED — always excluded]${colors.reset}` : '';
+              const status = !pinTag && !muteTag ? ` ${colors.dim}[auto]${colors.reset}` : '';
+              console.log(`  - ${n}${pinTag}${muteTag}${status}`);
+            }
+          }
+          console.log(`\n  ${colors.dim}Use: /skill pin <name>  /skill mute <name>  /skill reset${colors.reset}`);
+        } else if (sub === 'pin' && name) {
+          pinnedSkills.add(name);
+          mutedSkills.delete(name);
+          console.log(`${colors.green}📌 "${name}" pinned — injected on every request this session.${colors.reset}`);
+        } else if (sub === 'mute' && name) {
+          mutedSkills.add(name);
+          pinnedSkills.delete(name);
+          console.log(`${colors.yellow}🔇 "${name}" muted — excluded even if auto-matched.${colors.reset}`);
+        } else if (sub === 'reset') {
+          pinnedSkills.clear();
+          mutedSkills.clear();
+          console.log(`${colors.green}✅ All skill pins and mutes cleared. Back to automatic matching.${colors.reset}`);
+        } else {
+          console.log('Usage: /skill list | /skill pin <name> | /skill mute <name> | /skill reset');
+        }
+        promptUser();
+        return;
+      }
+
+      // ── /debug on|off ────────────────────────────────────────────────────
+      if (trimmedInput.toLowerCase().startsWith('/debug')) {
+        const arg = trimmedInput.split(/\s+/)[1]?.toLowerCase();
+        if (arg === 'on') {
+          debugMode = true;
+          console.log(`${colors.green}🔍 Flow logs ON — internal steps will be shown dim below each request.${colors.reset}`);
+        } else if (arg === 'off') {
+          debugMode = false;
+          console.log(`${colors.yellow}🔍 Flow logs OFF.${colors.reset}`);
+        } else {
+          console.log(`Flow logs: ${debugMode ? `${colors.green}ON${colors.reset}` : `${colors.yellow}OFF${colors.reset}`}. Use /debug on|off`);
+        }
+        promptUser();
+        return;
+      }
+
+      // ── /memory ──────────────────────────────────────────────────────────
       if (trimmedInput.toLowerCase() === '/memory') {
         try {
           const memory = await projectMemory.loadMemory();
@@ -360,7 +507,7 @@ async function main() {
         return;
       }
 
-      // Handle /plan command
+      // ── /plan ────────────────────────────────────────────────────────────
       if (trimmedInput.startsWith('/plan ')) {
         const goal = trimmedInput.substring(6).trim();
         if (!goal) {
@@ -397,7 +544,7 @@ async function main() {
         return;
       }
 
-      // Handle /plans command
+      // ── /plans ───────────────────────────────────────────────────────────
       if (trimmedInput.toLowerCase() === '/plans') {
         try {
           const list = await planningManager.listPlans();
@@ -415,7 +562,7 @@ async function main() {
         return;
       }
 
-      // Handle /plans archive command
+      // ── /plans archive ───────────────────────────────────────────────────
       if (trimmedInput.startsWith('/plans archive ')) {
         const id = trimmedInput.substring(15).trim();
         if (!id) {
@@ -438,7 +585,7 @@ async function main() {
         return;
       }
 
-      // Handle /session list or /sessions command
+      // ── /session list or /sessions ───────────────────────────────────────
       if (trimmedInput.toLowerCase() === '/session list' || trimmedInput.toLowerCase() === '/sessions') {
         try {
           const data = await sessionManager.loadSessionData();
@@ -467,7 +614,7 @@ async function main() {
         return;
       }
 
-      // Handle /session resume <sessionId> command
+      // ── /session resume ──────────────────────────────────────────────────
       if (trimmedInput.startsWith('/session resume ') || trimmedInput.startsWith('/session load ')) {
         const parts = trimmedInput.split(' ');
         const targetId = parts[parts.length - 1].trim();
@@ -495,7 +642,7 @@ async function main() {
           sessionCost = targetSession.costUsd;
 
           console.log(`${colors.green}✅ Session "${targetId}" successfully resumed.${colors.reset}`);
-          console.log(`   Restored ${conversationHistory.length} messages. Cumulative session cost initialized to $${sessionCost.toFixed(6)} USD.`);
+          console.log(`   Restored ${conversationHistory.length} messages. Cumulative cost: $${sessionCost.toFixed(6)} USD.`);
         } catch (err: any) {
           console.error(`Error loading session history for "${targetId}":`, err.message || err);
         }
@@ -503,6 +650,7 @@ async function main() {
         return;
       }
 
+      // ── Main conversation turn ────────────────────────────────────────────
       conversationHistory.push({
         role: 'user',
         content: trimmedInput,
@@ -518,69 +666,94 @@ async function main() {
               if (spinner.active()) {
                 spinner.stop();
               }
+            } else if (progress.type === 'flow_event') {
+              // Dim single-line trace — always on unless /debug off
+              if (debugMode) {
+                if (spinner.active()) spinner.stop();
+                const dur = progress.durationMs != null
+                  ? ` ${colors.dim}(${progress.durationMs}ms)${colors.reset}`
+                  : '';
+                const label = (progress.label ?? '').padEnd(14);
+                console.log(
+                  `  ${colors.gray}›${colors.reset} ${colors.dim}${label}${colors.reset} ` +
+                  `${colors.gray}${progress.detail ?? ''}${colors.reset}${dur}`
+                );
+              }
             } else if (progress.type === 'tool_start' && progress.toolCall) {
               if (spinner.active()) {
                 spinner.stop();
               }
               console.log(
-                `${colors.dim}⚙️  [Tool Call] Executing "${progress.toolCall.name}" with input:${colors.reset}`,
+                `${colors.dim}⚙️  [Tool] ${colors.bold}${progress.toolCall.name}${colors.reset}`,
                 progress.toolCall.input
               );
-              spinner.start(`⚙️ Running tool: ${progress.toolCall.name}...`);
+              spinner.start(`⚙️  Running: ${progress.toolCall.name}...`);
             } else if (progress.type === 'tool_end' && progress.toolCall) {
               if (spinner.active()) {
                 spinner.stop();
               }
-              const snippet = progress.result
-                ? progress.result.length > 200
-                  ? progress.result.substring(0, 200) + '...'
-                  : progress.result
-                : '';
-              console.log(
-                `${colors.dim}✔️  [Tool Call Done] "${progress.toolCall.name}" returned:\n---[OUTPUT START]---\n${snippet}\n---[OUTPUT END]---${colors.reset}`
-              );
-            } else {
-              if (spinner.active()) {
-                spinner.stop();
-              }
-              if (progress.type === 'thinking' && progress.content) {
-                console.log(`\n🧠 ${colors.bold}${colors.magenta}Thinking Process:${colors.reset}`);
-                console.log(`${colors.gray}${colors.dim}┌────────────────────────────────────────────────────────`);
-                const lines = progress.content.trim().split('\n');
-                for (const line of lines) {
-                  console.log(`${colors.gray}${colors.dim}│${colors.reset} ${colors.gray}${colors.italic}${line}${colors.reset}`);
-                }
-                console.log(`${colors.gray}${colors.dim}└────────────────────────────────────────────────────────${colors.reset}\n`);
-              } else if (progress.type === 'stats' && progress.stats) {
-                const stats = progress.stats;
-                const durationSec = stats.durationMs ? (stats.durationMs / 1000).toFixed(2) : '0.00';
-                const speed = stats.durationMs && stats.outputTokens > 0
-                  ? (stats.outputTokens / (stats.durationMs / 1000)).toFixed(1)
-                  : 'N/A';
-                const cacheStatus = stats.cacheHit ? `${colors.green}HIT${colors.reset}` : `${colors.yellow}MISS${colors.reset}`;
-                const cacheStatusRaw = stats.cacheHit ? 'HIT' : 'MISS';
-                const estimatedCost = estimateCost(stats.modelId, stats.inputTokens, stats.outputTokens, stats.cacheHit);
-                sessionCost += estimatedCost;
-                sessionManager.updateStats(sessionId, stats.inputTokens, stats.outputTokens, estimatedCost).catch(() => {});
-
-                // Log clean version to session logger
-                const cleanStatsMsg = `API stats: Model: ${stats.modelId} | Latency: ${durationSec}s | Speed: ${speed} t/s | Input: ${stats.inputTokens} | Output: ${stats.outputTokens} | Cache Hit: ${cacheStatusRaw} | Cost: $${estimatedCost.toFixed(6)} USD`;
-                SessionLogger.getInstance().logSystem(cleanStatsMsg);
-
-                // Display styled version in terminal
+              const result = progress.result ?? '';
+              const lines = result.split('\n');
+              if (lines.length > COLLAPSE_THRESHOLD) {
+                // Fold large output — user can type e/expand to see full content
+                lastCollapsedOutput = result;
                 console.log(
-                  `\n📊 ${colors.bold}Metrics: ${colors.reset}` +
-                  `[${colors.cyan}${stats.modelId}${colors.reset}] | ` +
-                  `Latency: ${colors.yellow}${durationSec}s${colors.reset} | ` +
-                  `Speed: ${colors.yellow}${speed} t/s${colors.reset} | ` +
-                  `Tokens: ${colors.bold}${stats.inputTokens}${colors.reset} in, ${colors.bold}${stats.outputTokens}${colors.reset} out | ` +
-                  `Cache: ${cacheStatus} | ` +
-                  `Cost: ${colors.green}$${estimatedCost.toFixed(6)} USD${colors.reset} | ` +
-                  `Session Cost: ${colors.green}$${sessionCost.toFixed(6)} USD${colors.reset}\n`
+                  `${colors.dim}✔️  [${progress.toolCall.name}] ` +
+                  `${lines.length} lines returned  ` +
+                  `${colors.yellow}(type "e" to expand)${colors.reset}`
                 );
-              } else if (progress.type === 'text' && progress.content) {
-                console.log(`${colors.bold}${colors.green}🤖 Agent > ${colors.reset}${progress.content}`);
+              } else {
+                lastCollapsedOutput = null;
+                const snippet = result.length > 300 ? result.substring(0, 300) + '...' : result;
+                console.log(
+                  `${colors.dim}✔️  [${progress.toolCall.name}] →\n${snippet}${colors.reset}`
+                );
               }
+            } else if (progress.type === 'thinking' && progress.content) {
+              if (spinner.active()) spinner.stop();
+              console.log(`\n🧠 ${colors.bold}${colors.magenta}Thinking:${colors.reset}`);
+              console.log(`${colors.gray}${colors.dim}┌──────────────────────────────────────────────────`);
+              const thinkLines = progress.content.trim().split('\n');
+              for (const line of thinkLines) {
+                console.log(`${colors.gray}${colors.dim}│${colors.reset} ${colors.gray}${colors.italic}${line}${colors.reset}`);
+              }
+              console.log(`${colors.gray}${colors.dim}└──────────────────────────────────────────────────${colors.reset}\n`);
+            } else if (progress.type === 'stats' && progress.stats) {
+              if (spinner.active()) spinner.stop();
+              const stats = progress.stats;
+              const modelSec = stats.modelLatencyMs != null
+                ? (stats.modelLatencyMs / 1000).toFixed(2)
+                : '0.00';
+              const toolSec = stats.toolExecutionLatencyMs != null && stats.toolExecutionLatencyMs > 0
+                ? (stats.toolExecutionLatencyMs / 1000).toFixed(2)
+                : null;
+              const speed = stats.modelLatencyMs && stats.modelLatencyMs > 0 && stats.outputTokens > 0
+                ? (stats.outputTokens / (stats.modelLatencyMs / 1000)).toFixed(1)
+                : 'N/A';
+              const cacheStatus = stats.cacheHit ? `${colors.green}HIT${colors.reset}` : `${colors.yellow}MISS${colors.reset}`;
+              const cacheStatusRaw = stats.cacheHit ? 'HIT' : 'MISS';
+              const estimatedCost = estimateCost(stats.modelId, stats.inputTokens, stats.outputTokens, stats.cacheHit);
+              sessionCost += estimatedCost;
+              sessionManager.updateStats(sessionId, stats.inputTokens, stats.outputTokens, estimatedCost).catch(() => {});
+
+              const toolLatencyNote = toolSec ? ` | Tool Time: ${toolSec}s` : '';
+              const cleanStatsMsg = `API stats: Model: ${stats.modelId} | Model Latency: ${modelSec}s${toolLatencyNote} | Speed: ${speed} t/s | Input: ${stats.inputTokens} | Output: ${stats.outputTokens} | Cache Hit: ${cacheStatusRaw} | Cost: $${estimatedCost.toFixed(6)} USD`;
+              SessionLogger.getInstance().logSystem(cleanStatsMsg);
+
+              const toolLatencyDisplay = toolSec ? ` | Tool: ${colors.yellow}${toolSec}s${colors.reset}` : '';
+              console.log(
+                `\n📊 ${colors.bold}Metrics: ${colors.reset}` +
+                `[${colors.cyan}${stats.modelId}${colors.reset}] | ` +
+                `Model: ${colors.yellow}${modelSec}s${colors.reset}${toolLatencyDisplay} | ` +
+                `Speed: ${colors.yellow}${speed} t/s${colors.reset} | ` +
+                `Tokens: ${colors.bold}${stats.inputTokens}${colors.reset} in, ${colors.bold}${stats.outputTokens}${colors.reset} out | ` +
+                `Cache: ${cacheStatus} | ` +
+                `Cost: ${colors.green}$${estimatedCost.toFixed(6)} USD${colors.reset} | ` +
+                `Session: ${colors.green}$${sessionCost.toFixed(6)} USD${colors.reset}\n`
+              );
+            } else if (progress.type === 'text' && progress.content) {
+              if (spinner.active()) spinner.stop();
+              console.log(`${colors.bold}${colors.green}🤖 Agent > ${colors.reset}${progress.content}`);
             }
           }
         );

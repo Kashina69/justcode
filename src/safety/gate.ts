@@ -7,20 +7,98 @@ export interface ClassificationResult {
   reason?: string;
 }
 
+/**
+ * Canonical list of all tool names that can be dispatched.
+ * Both the safety classifier and the executor derive from this single source.
+ * If a tool isn't listed here, classifyToolCall returns 'dangerous' and executeTool returns an error.
+ */
+export const KNOWN_TOOLS = new Set([
+  'read_file',
+  'write_file',
+  'edit_file',
+  'bash',
+  'grep',
+  'glob',
+  'search_memory',
+  'recall_memory',
+  'record_memory',
+  'get_memory_node',
+  'start_process',
+  'check_process',
+  'wait_process',
+]);
+
+/**
+ * Bash commands that are read-only and safe to run with zero confirmation prompt.
+ * Grow this list conservatively — only commands with no filesystem mutation or
+ * network egress beyond package resolution.
+ */
+const SAFE_BASH_PREFIXES = [
+  'ls', 'dir', 'cat', 'head', 'tail', 'echo',
+  'pwd', 'node -v', 'node --version',
+  'npm --version', 'npm -v', 'npm ls', 'npm list',
+  'npx --version', 'npx -v',
+  'git status', 'git log', 'git diff', 'git branch', 'git remote',
+  'git show', 'git stash list',
+  'which', 'where', 'type',
+  'wc', 'sort', 'uniq', 'grep',
+  'find', 'stat', 'file',
+  'env', 'printenv', 'set',
+  'ping', 'curl --head', 'curl -I',
+];
+
+/**
+ * Bash commands that are known to be dangerous and always require explicit confirmation.
+ */
+const DANGEROUS_BASH_PATTERNS: RegExp[] = [
+  /\brm\s+-[a-zA-Z]*r[a-zA-Z]*f[a-zA-Z]*/,             // rm -rf, rm -rvf, etc (r and f in same flag)
+  /\brm\s+-[a-zA-Z]*f[a-zA-Z]*r[a-zA-Z]*/,             // rm -fr variant
+  /\brm\s+(-\w+\s+)*-\w*r\w*\s+(-\w+\s+)*-\w*f\w*/,   // rm -r -f (split flags)
+  /\brm\s+(-\w+\s+)*-\w*f\w*\s+(-\w+\s+)*-\w*r\w*/,   // rm -f -r (split flags)
+  /\brm\s+--recursive\b/,
+  /\bDROP\b/i,
+  /\bTRUNCATE\b/i,
+  /\bDELETE\s+FROM\b/i,
+  /git\s+push\s+.*--force/,
+  /git\s+push\s+.*-f\b/,
+  /(curl|wget).*\|\s*(sh|bash|zsh|fish)/,  // pipe URL content into shell
+  /\bformat\s+(c:|d:|e:|\/.)/i,           // disk format
+  /\bdd\s+if=/,                            // raw disk write
+  /\bchmod\s+-R\s+777\b/,                  // recursive world-writable
+  /\bsudo\s+rm\b/,
+  /\bpoweroff\b|\breboot\b|\bshutdown\b/,
+  />\s*\/dev\/sd[a-z]\b/,                  // overwrite raw block device
+];
+
+/**
+ * Checks whether a bash command is in the conservative safe allowlist.
+ */
+function isBashCommandSafe(command: string): boolean {
+  const trimmed = command.trim().toLowerCase();
+  return SAFE_BASH_PREFIXES.some((prefix) => {
+    // Match exactly or as first word(s) of the command
+    return trimmed === prefix || trimmed.startsWith(prefix + ' ') || trimmed.startsWith(prefix + '\t');
+  });
+}
+
+/**
+ * Checks whether a bash command matches any dangerous denylist pattern.
+ */
+function isBashCommandDangerous(command: string): { dangerous: boolean; pattern?: RegExp } {
+  for (const pattern of DANGEROUS_BASH_PATTERNS) {
+    if (pattern.test(command)) {
+      return { dangerous: true, pattern };
+    }
+  }
+  return { dangerous: false };
+}
+
 export class SafetyGate {
   private projectRoot: string;
-  private denylist: RegExp[] = [
-    /rm\s+-rf\b/,
-    /\bDROP\b/i,
-    /\bTRUNCATE\b/i,
-    /\bDELETE\s+FROM\b/i,
-    /git\s+push\s+.*--force/,
-    /(curl|wget).*\b(sh|bash)\b/
-  ];
 
   /**
    * Initializes the safety gate with a project root.
-   * 
+   *
    * @param projectRoot The root directory of the project, defaulting to current working directory.
    */
   constructor(projectRoot: string = process.cwd()) {
@@ -28,61 +106,98 @@ export class SafetyGate {
   }
 
   /**
-   * Classifies a tool call execution payload into 'safe', 'write', or 'dangerous'.
-   * 
+   * Classifies a tool call into 'safe', 'write', or 'dangerous' using a three-tier model:
+   *  - safe: execute immediately, no prompt
+   *  - write: execute immediately, log the action (no blocking prompt)
+   *  - dangerous: block and require explicit (y/N) confirmation
+   *
+   * Both the classification logic and the dispatcher share KNOWN_TOOLS as the single
+   * source of truth for what tools exist.
+   *
    * @param name The name of the tool being called.
    * @param input The arguments passed to the tool.
    * @returns ClassificationResult containing the classification and optionally a reason.
    */
   classifyToolCall(name: string, input: any): ClassificationResult {
-    // 1. Filesystem Sandbox Verification
-    // Check if the input contains a path parameter and if it attempts to escape the root
+    // 0. Reject unknown tools outright — they must not execute.
+    if (!KNOWN_TOOLS.has(name)) {
+      return {
+        classification: 'dangerous',
+        reason: `Unknown tool "${name}" — not in the registered tool list. Execution blocked.`,
+      };
+    }
+
+    // 1. Filesystem sandbox verification for path-accepting tools
     if (input && typeof input === 'object') {
       for (const [key, value] of Object.entries(input)) {
         if (typeof value === 'string' && (key === 'path' || key === 'filePath' || key === 'dir')) {
           const resolvedPath = path.resolve(this.projectRoot, value);
-          // If the resolved path does not start with the project root, it's dangerous
           if (!resolvedPath.startsWith(this.projectRoot)) {
             return {
               classification: 'dangerous',
-              reason: `Path "${value}" resolves outside the project root directory: "${this.projectRoot}"`,
+              reason: `Path "${value}" resolves outside the project root: "${this.projectRoot}"`,
             };
           }
         }
       }
     }
 
-    // 2. Tool-specific rules
-    if (name === 'bash') {
-      const command = input?.command || '';
-      for (const regex of this.denylist) {
-        if (regex.test(command)) {
-          return {
-            classification: 'dangerous',
-            reason: `Bash command matches denylist pattern: ${regex.toString()}`,
-          };
-        }
+    // 2. Bash three-tier classification
+    if (name === 'bash' || name === 'start_process') {
+      const command: string = input?.command || '';
+
+      // 2a. Check denylist first — these always require confirmation
+      const dangerCheck = isBashCommandDangerous(command);
+      if (dangerCheck.dangerous) {
+        return {
+          classification: 'dangerous',
+          reason: `Command matches dangerous pattern: ${dangerCheck.pattern?.toString()}`,
+        };
       }
-      // General bash command is dangerous by default
+
+      // 2b. Check safe allowlist — these run immediately with no prompt
+      if (isBashCommandSafe(command)) {
+        return { classification: 'safe' };
+      }
+
+      // 2c. Everything else is 'write' — runs immediately, but is logged
       return {
-        classification: 'dangerous',
-        reason: 'All bash executions require manual confirmation.',
+        classification: 'write',
+        reason: `Bash command "${command.substring(0, 60)}" will execute without prompting and be logged.`,
       };
     }
 
+    // 3. Process polling tools — always safe (read-only status checks)
+    if (name === 'check_process' || name === 'wait_process') {
+      return { classification: 'safe' };
+    }
+
+    // 4. File mutation tools
     if (name === 'write_file' || name === 'edit_file') {
       return { classification: 'write' };
     }
 
-    // Default safe tools (provided path checks passed)
-    if (name === 'read_file' || name === 'grep' || name === 'glob' || name === 'list_dir') {
+    // 5. Memory write tools
+    if (name === 'record_memory') {
+      return { classification: 'write' };
+    }
+
+    // 6. Safe read-only tools
+    if (
+      name === 'read_file' ||
+      name === 'grep' ||
+      name === 'glob' ||
+      name === 'search_memory' ||
+      name === 'recall_memory' ||
+      name === 'get_memory_node'
+    ) {
       return { classification: 'safe' };
     }
 
-    // Any unrecognized tool is dangerous by default
+    // Fallback — shouldn't be reached given KNOWN_TOOLS check above, but be safe
     return {
       classification: 'dangerous',
-      reason: `Unrecognized tool "${name}"`,
+      reason: `Unclassified tool "${name}" — requires manual approval.`,
     };
   }
 }

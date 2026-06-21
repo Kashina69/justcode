@@ -1,0 +1,2 @@
+## Active Implementation Plan(s)
+You are executing the following plan details. Check off steps in these markdown documents as you complete them by replacing "- [ ]" with "- [x]" using your edit_file tool. Focus on the next uncompleted step. Do not deviate from these steps without explicit developer instructions:

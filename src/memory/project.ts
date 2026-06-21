@@ -3,6 +3,7 @@ import path from 'path';
 import { ConversationMessage } from '../providers/types.js';
 import { AppConfig } from '../config/index.js';
 import { getProviderForAlias } from '../providers/factory.js';
+import { readTemplateSync } from '../config/prompts.js';
 
 export interface FileIndexEntry {
   path: string;
@@ -125,10 +126,7 @@ export class ProjectMemoryManager {
       })
       .join('\n\n');
 
-    const systemPrompt =
-      'You are a technical documenter. Read the conversation history transcript and summarize the primary ' +
-      'goals achieved, files changed, and major architectural decisions made by the developer in a single, ' +
-      'concise markdown paragraph. Focus on why changes were made and what was resolved. Do not include introductory text.';
+    const systemPrompt = readTemplateSync('session_summary_system.txt');
 
     try {
       const response = await provider.complete({

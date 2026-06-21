@@ -17,7 +17,7 @@ import { SkillMatcher } from '../skills/matcher.js';
 import { Skill } from '../skills/types.js';
 import { logTokenUsage } from '../memory/global.js';
 import { ProjectMemoryManager } from '../memory/project.js';
-import { readPromptSync } from '../config/prompts.js';
+import { readPromptSync, readTemplateSync } from '../config/prompts.js';
 
 export interface AgentOptions {
   config: AppConfig;
@@ -26,6 +26,10 @@ export interface AgentOptions {
   backupManager: BackupManager;
   onConfirmDangerousTool: (toolCall: ToolCall, reason: string) => Promise<boolean>;
   systemPrompt?: string;
+  /** Skills to always include regardless of matcher result (session-scoped) */
+  pinnedSkills?: Set<string>;
+  /** Skills to always exclude regardless of matcher result (session-scoped) */
+  mutedSkills?: Set<string>;
 }
 
 export class AgentOrchestrator {
@@ -38,10 +42,15 @@ export class AgentOrchestrator {
   private projectMemory: ProjectMemoryManager;
   private skills: Skill[] = [];
   private skillsLoaded = false;
+  private pinnedSkills: Set<string>;
+  private mutedSkills: Set<string>;
+  // Template strings loaded once at construction — editable in templates/ without touching code
+  private readonly planInjectionHeader: string;
+  private readonly skillInjectionHeader: string;
 
   /**
    * Initializes the AgentOrchestrator.
-   * 
+   *
    * @param options Config settings including registry, safety, and app configurations.
    */
   constructor(options: AgentOptions) {
@@ -52,6 +61,10 @@ export class AgentOrchestrator {
     this.onConfirmDangerousTool = options.onConfirmDangerousTool;
     this.projectMemory = new ProjectMemoryManager(this.config);
     this.systemPrompt = options.systemPrompt || readPromptSync('agent_system.txt');
+    this.pinnedSkills = options.pinnedSkills ?? new Set();
+    this.mutedSkills = options.mutedSkills ?? new Set();
+    this.planInjectionHeader = readTemplateSync('plan_injection_header.txt');
+    this.skillInjectionHeader = readTemplateSync('skill_injection_header.txt');
   }
 
   /**
@@ -68,7 +81,7 @@ export class AgentOrchestrator {
 
   /**
    * Scans the .agent/plans/ directory for active plans to append to system prompts.
-   * 
+   *
    * @returns Array of active plan details.
    */
   private async loadActivePlans(): Promise<{ name: string; content: string }[]> {
@@ -94,7 +107,7 @@ export class AgentOrchestrator {
 
   /**
    * Runs a single execution turn. Loads active plans, memory logs, and dynamic provider mappings.
-   * 
+   *
    * @param messages The current conversation history.
    * @param onProgress Callback invoked to notify the caller of agent actions/progress.
    * @returns A promise resolving to the updated conversation history.
@@ -102,15 +115,27 @@ export class AgentOrchestrator {
   async runTurn(
     messages: ConversationMessage[],
     onProgress?: (progress: {
-      type: 'text' | 'tool_start' | 'tool_end' | 'stats' | 'thinking' | 'request_start' | 'request_end';
+      type:
+        | 'text'
+        | 'tool_start'
+        | 'tool_end'
+        | 'stats'
+        | 'thinking'
+        | 'request_start'
+        | 'request_end'
+        | 'flow_event';
       content?: string;
       toolCall?: ToolCall;
       result?: string;
+      label?: string;
+      detail?: string;
+      durationMs?: number;
       stats?: {
         modelId: string;
         inputTokens: number;
         outputTokens: number;
-        durationMs?: number;
+        modelLatencyMs?: number;
+        toolExecutionLatencyMs?: number;
         cacheHit?: boolean;
         thinkingContent?: string;
       };
@@ -119,6 +144,7 @@ export class AgentOrchestrator {
     const availableTools = this.registry.getToolDefinitions();
 
     // 1. Ensure skills are loaded
+    const skillLoadStart = Date.now();
     await this.ensureSkillsLoaded();
 
     // 2. Load historical project decisions memory
@@ -141,8 +167,32 @@ export class AgentOrchestrator {
     }
 
     // 5. Resolve semantically relevant skills
+    const matchStart = Date.now();
     const matcher = new SkillMatcher(this.config);
-    const matchedSkills = await matcher.matchSkills(taskDescription, this.skills);
+    let matchedSkills = await matcher.matchSkills(taskDescription, this.skills);
+
+    // Apply pin/mute overrides from session state
+    matchedSkills = matchedSkills.filter((s) => !this.mutedSkills.has(s.name));
+    for (const pinnedName of this.pinnedSkills) {
+      if (!matchedSkills.find((s) => s.name === pinnedName)) {
+        const pinned = this.skills.find((s) => s.name === pinnedName);
+        if (pinned) matchedSkills.push(pinned);
+      }
+    }
+
+    const pinMuteSummary = [
+      this.pinnedSkills.size > 0 ? `+pinned:${[...this.pinnedSkills].join(',')}` : '',
+      this.mutedSkills.size > 0 ? `-muted:${[...this.mutedSkills].join(',')}` : '',
+    ].filter(Boolean).join(' ');
+
+    onProgress?.({
+      type: 'flow_event',
+      label: 'skill_match',
+      detail: `${this.skills.length} skills evaluated → ${matchedSkills.length} active` +
+        (matchedSkills.length > 0 ? ` [${matchedSkills.map((s) => s.name).join(', ')}]` : '') +
+        (pinMuteSummary ? ` ${pinMuteSummary}` : ''),
+      durationMs: Date.now() - matchStart,
+    });
 
     // 6. Inject project memory, active plans, and matched skills into system prompt
     let activeSystemPrompt = this.systemPrompt;
@@ -158,10 +208,8 @@ export class AgentOrchestrator {
     if (activePlans.length > 0) {
       activeSystemPrompt +=
         '\n\n' +
-        '## Active Implementation Plan(s)\n' +
-        'You are executing the following plan details. ' +
-        'Check off steps in these markdown documents as you complete them by replacing "- [ ]" with "- [x]" using your edit_file tool. ' +
-        'Focus on the next uncompleted step. Do not deviate from these steps without explicit developer instructions:\n\n' +
+        this.planInjectionHeader +
+        '\n\n' +
         activePlans
           .map((p) => `### Plan File: ".agent/plans/${p.name}.md"\n${p.content}`)
           .join('\n\n');
@@ -170,18 +218,26 @@ export class AgentOrchestrator {
     if (matchedSkills.length > 0) {
       activeSystemPrompt +=
         '\n\n' +
-        'You MUST consult and follow every skill listed below whose description matches the current task. ' +
-        'This is not optional. If a skill\'s instructions conflict with a user request, follow the skill and tell the user why.\n\n' +
+        this.skillInjectionHeader +
+        '\n\n' +
         matchedSkills.map((s) => `## Skill: ${s.name}\n${s.content}`).join('\n\n');
     }
 
     // Resolve model alias dynamically based on query and plans
     const resolvedAlias = this.routeModelAlias(messages, activePlans.length > 0);
     const provider = getProviderForAlias(resolvedAlias, this.config);
+    const resolvedModelId = this.config.modelAliases[resolvedAlias]?.modelId ?? 'claude-3-5-sonnet-20241022';
 
-    // Call the model provider
+    onProgress?.({
+      type: 'flow_event',
+      label: 'model_route',
+      detail: `→ ${resolvedAlias} (${resolvedModelId})`,
+    });
+
+    // Call the model provider (track model-only latency)
     onProgress?.({ type: 'request_start' });
     let result;
+    const modelStartMs = Date.now();
     try {
       result = await provider.complete({
         systemPrompt: activeSystemPrompt,
@@ -192,10 +248,9 @@ export class AgentOrchestrator {
     } finally {
       onProgress?.({ type: 'request_end' });
     }
+    const modelLatencyMs = Date.now() - modelStartMs;
 
     // 7. Log token usage
-    const modelConfig = this.config.modelAliases[resolvedAlias];
-    const resolvedModelId = modelConfig ? modelConfig.modelId : 'claude-3-5-sonnet-20241022';
     await logTokenUsage(
       resolvedModelId,
       result.tokenUsage.inputTokens,
@@ -210,7 +265,7 @@ export class AgentOrchestrator {
       });
     }
 
-    // Forward completion stats/metrics
+    // Forward completion stats/metrics (model latency only — tool latency added after tool calls)
     if (onProgress) {
       onProgress({
         type: 'stats',
@@ -218,7 +273,8 @@ export class AgentOrchestrator {
           modelId: resolvedModelId,
           inputTokens: result.tokenUsage.inputTokens,
           outputTokens: result.tokenUsage.outputTokens,
-          durationMs: result.durationMs,
+          modelLatencyMs,
+          toolExecutionLatencyMs: 0,
           cacheHit: result.cacheHit,
           thinkingContent: result.thinkingContent,
         },
@@ -258,8 +314,9 @@ export class AgentOrchestrator {
       return conversation;
     }
 
-    // Process tool calls
+    // Process tool calls — track cumulative tool execution latency separately from model latency
     const toolResults: MessageContentBlock[] = [];
+    let toolExecutionLatencyMs = 0;
 
     for (const toolCall of result.requestedToolCalls) {
       onProgress?.({ type: 'tool_start', toolCall });
@@ -270,6 +327,15 @@ export class AgentOrchestrator {
       // Evaluate Safety Class
       const safetyCheck = this.safetyGate.classifyToolCall(toolCall.name, toolCall.input);
 
+      onProgress?.({
+        type: 'flow_event',
+        label: 'tool_classify',
+        detail: `${toolCall.name} → ${safetyCheck.classification}` +
+          (safetyCheck.reason ? ` (${safetyCheck.reason.slice(0, 60)})` : ''),
+      });
+
+      const toolStartMs = Date.now();
+
       if (safetyCheck.classification === 'dangerous') {
         const reason = safetyCheck.reason || 'Manual confirmation required';
         const confirmed = await this.onConfirmDangerousTool(toolCall, reason);
@@ -278,7 +344,6 @@ export class AgentOrchestrator {
           output = `Error: Safety Blocked. Execution of "${toolCall.name}" rejected by the developer.`;
           isError = true;
         } else {
-          // Execution confirmed
           try {
             output = await this.registry.executeTool(toolCall.name, toolCall.input);
           } catch (err: any) {
@@ -289,7 +354,6 @@ export class AgentOrchestrator {
       } else {
         // Safe or Write tool execution
         if (safetyCheck.classification === 'write' && typeof toolCall.input?.path === 'string') {
-          // Backup target file first
           await this.backupManager.createBackup(toolCall.input.path);
         }
 
@@ -300,6 +364,8 @@ export class AgentOrchestrator {
           isError = true;
         }
       }
+
+      toolExecutionLatencyMs += Date.now() - toolStartMs;
 
       onProgress?.({ type: 'tool_end', toolCall, result: output });
 
@@ -323,7 +389,7 @@ export class AgentOrchestrator {
 
   /**
    * Dynamically routes the request to the most appropriate model alias.
-   * 
+   *
    * @param messages The conversation history.
    * @param hasActivePlans Whether there are active plans in the project.
    * @returns The resolved model alias ('fast' | 'smart' | 'planner').

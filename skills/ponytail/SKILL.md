@@ -1,6 +1,6 @@
 ---
 name: ponytail
-description: walking the decision ladder before writing code or introducing new dependencies
+description: coding tasks, implementation, adding dependencies, creating abstractions, introducing new packages
 ---
 # The Decision Ladder
 
