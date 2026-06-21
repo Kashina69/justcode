@@ -19,6 +19,7 @@ vi.mock('@anthropic-ai/sdk', () => {
 describe('AnthropicMessagesProvider', () => {
   const dummyConfig: AppConfig = {
     anthropicApiKey: 'dummy-api-key',
+    anthropicEndpoint: undefined,
     openaiApiKey: undefined,
     openaiEndpoint: undefined,
     modelAliases: {
@@ -87,6 +88,7 @@ describe('AnthropicMessagesProvider', () => {
     expect(() => {
       new AnthropicMessagesProvider({
         anthropicApiKey: undefined,
+        anthropicEndpoint: undefined,
         openaiApiKey: undefined,
         openaiEndpoint: undefined,
         modelAliases: dummyConfig.modelAliases,
