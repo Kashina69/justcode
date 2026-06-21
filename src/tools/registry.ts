@@ -6,6 +6,12 @@ import { BashTool } from './bash.js';
 import { GrepTool } from './grep.js';
 import { GlobTool } from './glob.js';
 import { ToolDefinition } from '../providers/types.js';
+import {
+  SearchMemoryTool,
+  RecallMemoryTool,
+  RecordMemoryTool,
+  GetMemoryNodeTool
+} from './memory_tools.js';
 
 export class ToolRegistry {
   private tools: Map<string, Tool> = new Map();
@@ -17,6 +23,10 @@ export class ToolRegistry {
     this.registerTool(new BashTool());
     this.registerTool(new GrepTool());
     this.registerTool(new GlobTool());
+    this.registerTool(new SearchMemoryTool());
+    this.registerTool(new RecallMemoryTool());
+    this.registerTool(new RecordMemoryTool());
+    this.registerTool(new GetMemoryNodeTool());
   }
 
   /**

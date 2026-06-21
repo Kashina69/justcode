@@ -6,6 +6,8 @@ import path from 'path';
 // Load environment variables from .env file in the current working directory.
 dotenv.config();
 
+export const MAX_MEMORY_RECALL_TOKENS = 4000;
+
 export interface ModelConfig {
   provider: 'anthropic' | 'openai-compat';
   modelId: string;

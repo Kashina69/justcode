@@ -13,6 +13,9 @@ import { PlanningManager } from '../planning/planner.js';
 import { SkillLoader } from '../skills/loader.js';
 import { ConversationMessage, ToolCall } from '../providers/types.js';
 import { SessionLogger } from '../memory/logger.js';
+import { CliSpinner } from './spinner.js';
+import { BashTool } from '../tools/bash.js';
+import { SessionManager } from '../memory/session.js';
 
 function askQuestion(rl: readline.Interface, query: string): Promise<string> {
   return new Promise((resolve) => {
@@ -86,6 +89,12 @@ async function main() {
     input: process.stdin,
     output: process.stdout,
   });
+
+  const spinner = new CliSpinner();
+
+  let sessionId = String(Date.now());
+  let sessionCost = 0;
+  const sessionManager = new SessionManager();
 
   let config = loadAppConfig();
 
@@ -181,6 +190,9 @@ async function main() {
    * @returns A promise resolving to true if confirmed, false otherwise.
    */
   const onConfirmDangerousTool = (toolCall: ToolCall, reason: string): Promise<boolean> => {
+    if (spinner.active()) {
+      spinner.stop();
+    }
     return new Promise((resolve) => {
       console.log(`\n${colors.bold}${colors.yellow}⚠️  [SAFETY WARNING] A dangerous action has been requested:${colors.reset}`);
       console.log(`${colors.bold}Reason:${colors.reset} ${reason}`);
@@ -214,12 +226,17 @@ async function main() {
    * Summarizes the session conversation, saves it as an artifact, and updates memory.md.
    */
   const saveSessionMemoryAndExit = async () => {
+    if (spinner.active()) {
+      spinner.stop();
+    }
     if (conversationHistory.length > 0) {
       console.log('\n💾 Summarizing session and updating project memory...');
       try {
         const summary = await projectMemory.createSessionSummary(conversationHistory);
         await projectMemory.saveSessionSummary(summary);
         await projectMemory.appendMemory(summary);
+        await sessionManager.updateSessionSummary(sessionId, summary);
+        await sessionManager.saveSessionHistory(sessionId, conversationHistory);
         console.log(
           '✅ Session summary saved to .agent/sessions/ and appended to .agent/memory.md.'
         );
@@ -227,6 +244,8 @@ async function main() {
         console.error('⚠️  Failed to save project memory:', err.message || err);
       }
     }
+    // Clean up background servers/processes spawned in this session
+    BashTool.cleanup();
     console.log('Goodbye!');
     process.exit(0);
   };
@@ -419,6 +438,71 @@ async function main() {
         return;
       }
 
+      // Handle /session list or /sessions command
+      if (trimmedInput.toLowerCase() === '/session list' || trimmedInput.toLowerCase() === '/sessions') {
+        try {
+          const data = await sessionManager.loadSessionData();
+          console.log('\n📊 Project Global Session Stats:');
+          console.log(`  Total Project Input Tokens:   ${data.projectStats.totalInputTokens.toLocaleString()}`);
+          console.log(`  Total Project Output Tokens:  ${data.projectStats.totalOutputTokens.toLocaleString()}`);
+          console.log(`  Total Project Estimated Cost: $${data.projectStats.totalCostUsd.toFixed(6)} USD`);
+
+          console.log('\n📁 Saved Resumable Chat Sessions:');
+          if (data.sessions.length === 0) {
+            console.log('  (none)');
+          } else {
+            for (const s of data.sessions) {
+              const activeLabel = s.id === sessionId ? ` [${colors.green}ACTIVE${colors.reset}]` : '';
+              console.log(`  - Session ID: ${colors.bold}${s.id}${colors.reset}${activeLabel}`);
+              console.log(`    Created At: ${s.createdAt}`);
+              console.log(`    Total Cost: $${s.costUsd.toFixed(6)} USD (${s.inputTokens} in, ${s.outputTokens} out)`);
+              console.log(`    Summary:    ${colors.dim}${s.summary}${colors.reset}`);
+              console.log('  ------------------------------------------');
+            }
+          }
+        } catch (err: any) {
+          console.error('Error loading sessions catalog:', err.message || err);
+        }
+        promptUser();
+        return;
+      }
+
+      // Handle /session resume <sessionId> command
+      if (trimmedInput.startsWith('/session resume ') || trimmedInput.startsWith('/session load ')) {
+        const parts = trimmedInput.split(' ');
+        const targetId = parts[parts.length - 1].trim();
+        if (!targetId) {
+          console.log('Error: Please specify a Session ID, e.g. /session resume 1782036344784');
+          promptUser();
+          return;
+        }
+
+        try {
+          const data = await sessionManager.loadSessionData();
+          const targetSession = data.sessions.find((s) => s.id === targetId);
+          if (!targetSession) {
+            console.log(`Error: Could not find session with ID "${targetId}" in project history.`);
+            promptUser();
+            return;
+          }
+
+          if (spinner.active()) {
+            spinner.stop();
+          }
+
+          conversationHistory = await sessionManager.loadSessionHistory(targetId);
+          sessionId = targetId;
+          sessionCost = targetSession.costUsd;
+
+          console.log(`${colors.green}✅ Session "${targetId}" successfully resumed.${colors.reset}`);
+          console.log(`   Restored ${conversationHistory.length} messages. Cumulative session cost initialized to $${sessionCost.toFixed(6)} USD.`);
+        } catch (err: any) {
+          console.error(`Error loading session history for "${targetId}":`, err.message || err);
+        }
+        promptUser();
+        return;
+      }
+
       conversationHistory.push({
         role: 'user',
         content: trimmedInput,
@@ -428,46 +512,25 @@ async function main() {
         conversationHistory = await orchestrator.runTurn(
           conversationHistory,
           (progress) => {
-            if (progress.type === 'thinking' && progress.content) {
-              console.log(`\n🧠 ${colors.bold}${colors.magenta}Thinking Process:${colors.reset}`);
-              console.log(`${colors.gray}${colors.dim}┌────────────────────────────────────────────────────────`);
-              const lines = progress.content.trim().split('\n');
-              for (const line of lines) {
-                console.log(`${colors.gray}${colors.dim}│${colors.reset} ${colors.gray}${colors.italic}${line}${colors.reset}`);
+            if (progress.type === 'request_start') {
+              spinner.start('🤖 AI is thinking...');
+            } else if (progress.type === 'request_end') {
+              if (spinner.active()) {
+                spinner.stop();
               }
-              console.log(`${colors.gray}${colors.dim}└────────────────────────────────────────────────────────${colors.reset}\n`);
-            } else if (progress.type === 'stats' && progress.stats) {
-              const stats = progress.stats;
-              const durationSec = stats.durationMs ? (stats.durationMs / 1000).toFixed(2) : '0.00';
-              const speed = stats.durationMs && stats.outputTokens > 0
-                ? (stats.outputTokens / (stats.durationMs / 1000)).toFixed(1)
-                : 'N/A';
-              const cacheStatus = stats.cacheHit ? `${colors.green}HIT${colors.reset}` : `${colors.yellow}MISS${colors.reset}`;
-              const cacheStatusRaw = stats.cacheHit ? 'HIT' : 'MISS';
-              const estimatedCost = estimateCost(stats.modelId, stats.inputTokens, stats.outputTokens, stats.cacheHit);
-
-              // Log clean version to session logger
-              const cleanStatsMsg = `API stats: Model: ${stats.modelId} | Latency: ${durationSec}s | Speed: ${speed} t/s | Input: ${stats.inputTokens} | Output: ${stats.outputTokens} | Cache Hit: ${cacheStatusRaw} | Cost: $${estimatedCost.toFixed(6)} USD`;
-              SessionLogger.getInstance().logSystem(cleanStatsMsg);
-
-              // Display styled version in terminal
-              console.log(
-                `\n📊 ${colors.bold}Metrics: ${colors.reset}` +
-                `[${colors.cyan}${stats.modelId}${colors.reset}] | ` +
-                `Latency: ${colors.yellow}${durationSec}s${colors.reset} | ` +
-                `Speed: ${colors.yellow}${speed} t/s${colors.reset} | ` +
-                `Tokens: ${colors.bold}${stats.inputTokens}${colors.reset} in, ${colors.bold}${stats.outputTokens}${colors.reset} out | ` +
-                `Cache: ${cacheStatus} | ` +
-                `Cost: ${colors.green}$${estimatedCost.toFixed(6)} USD${colors.reset}\n`
-              );
-            } else if (progress.type === 'text' && progress.content) {
-              console.log(`${colors.bold}${colors.green}🤖 Agent > ${colors.reset}${progress.content}`);
             } else if (progress.type === 'tool_start' && progress.toolCall) {
+              if (spinner.active()) {
+                spinner.stop();
+              }
               console.log(
                 `${colors.dim}⚙️  [Tool Call] Executing "${progress.toolCall.name}" with input:${colors.reset}`,
                 progress.toolCall.input
               );
+              spinner.start(`⚙️ Running tool: ${progress.toolCall.name}...`);
             } else if (progress.type === 'tool_end' && progress.toolCall) {
+              if (spinner.active()) {
+                spinner.stop();
+              }
               const snippet = progress.result
                 ? progress.result.length > 200
                   ? progress.result.substring(0, 200) + '...'
@@ -476,13 +539,61 @@ async function main() {
               console.log(
                 `${colors.dim}✔️  [Tool Call Done] "${progress.toolCall.name}" returned:\n---[OUTPUT START]---\n${snippet}\n---[OUTPUT END]---${colors.reset}`
               );
+            } else {
+              if (spinner.active()) {
+                spinner.stop();
+              }
+              if (progress.type === 'thinking' && progress.content) {
+                console.log(`\n🧠 ${colors.bold}${colors.magenta}Thinking Process:${colors.reset}`);
+                console.log(`${colors.gray}${colors.dim}┌────────────────────────────────────────────────────────`);
+                const lines = progress.content.trim().split('\n');
+                for (const line of lines) {
+                  console.log(`${colors.gray}${colors.dim}│${colors.reset} ${colors.gray}${colors.italic}${line}${colors.reset}`);
+                }
+                console.log(`${colors.gray}${colors.dim}└────────────────────────────────────────────────────────${colors.reset}\n`);
+              } else if (progress.type === 'stats' && progress.stats) {
+                const stats = progress.stats;
+                const durationSec = stats.durationMs ? (stats.durationMs / 1000).toFixed(2) : '0.00';
+                const speed = stats.durationMs && stats.outputTokens > 0
+                  ? (stats.outputTokens / (stats.durationMs / 1000)).toFixed(1)
+                  : 'N/A';
+                const cacheStatus = stats.cacheHit ? `${colors.green}HIT${colors.reset}` : `${colors.yellow}MISS${colors.reset}`;
+                const cacheStatusRaw = stats.cacheHit ? 'HIT' : 'MISS';
+                const estimatedCost = estimateCost(stats.modelId, stats.inputTokens, stats.outputTokens, stats.cacheHit);
+                sessionCost += estimatedCost;
+                sessionManager.updateStats(sessionId, stats.inputTokens, stats.outputTokens, estimatedCost).catch(() => {});
+
+                // Log clean version to session logger
+                const cleanStatsMsg = `API stats: Model: ${stats.modelId} | Latency: ${durationSec}s | Speed: ${speed} t/s | Input: ${stats.inputTokens} | Output: ${stats.outputTokens} | Cache Hit: ${cacheStatusRaw} | Cost: $${estimatedCost.toFixed(6)} USD`;
+                SessionLogger.getInstance().logSystem(cleanStatsMsg);
+
+                // Display styled version in terminal
+                console.log(
+                  `\n📊 ${colors.bold}Metrics: ${colors.reset}` +
+                  `[${colors.cyan}${stats.modelId}${colors.reset}] | ` +
+                  `Latency: ${colors.yellow}${durationSec}s${colors.reset} | ` +
+                  `Speed: ${colors.yellow}${speed} t/s${colors.reset} | ` +
+                  `Tokens: ${colors.bold}${stats.inputTokens}${colors.reset} in, ${colors.bold}${stats.outputTokens}${colors.reset} out | ` +
+                  `Cache: ${cacheStatus} | ` +
+                  `Cost: ${colors.green}$${estimatedCost.toFixed(6)} USD${colors.reset} | ` +
+                  `Session Cost: ${colors.green}$${sessionCost.toFixed(6)} USD${colors.reset}\n`
+                );
+              } else if (progress.type === 'text' && progress.content) {
+                console.log(`${colors.bold}${colors.green}🤖 Agent > ${colors.reset}${progress.content}`);
+              }
             }
           }
         );
       } catch (err: any) {
+        if (spinner.active()) {
+          spinner.stop();
+        }
         console.error('\n❌ Error during execution:', err.message || err);
       }
 
+      if (spinner.active()) {
+        spinner.stop();
+      }
       promptUser();
     });
   };

@@ -3,15 +3,16 @@
   "version": "0.1.0",
   "description": "Terminal-based, agentic coding assistant",
   "type": "module",
-  "main": "dist/cli/index.js",
+  "main": "dist/src/cli/index.js",
   "bin": {
-    "justcode": "./dist/cli/index.js"
+    "justcode": "./dist/src/cli/index.js"
   },
   "scripts": {
     "dev": "tsx src/cli/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build": "tsc"
+    "build": "tsc",
+    "prepare": "npm run build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.22.0",

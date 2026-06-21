@@ -102,7 +102,7 @@ export class AgentOrchestrator {
   async runTurn(
     messages: ConversationMessage[],
     onProgress?: (progress: {
-      type: 'text' | 'tool_start' | 'tool_end' | 'stats' | 'thinking';
+      type: 'text' | 'tool_start' | 'tool_end' | 'stats' | 'thinking' | 'request_start' | 'request_end';
       content?: string;
       toolCall?: ToolCall;
       result?: string;
@@ -175,19 +175,26 @@ export class AgentOrchestrator {
         matchedSkills.map((s) => `## Skill: ${s.name}\n${s.content}`).join('\n\n');
     }
 
-    // Resolve provider dynamically for 'smart' alias
-    const provider = getProviderForAlias('smart', this.config);
+    // Resolve model alias dynamically based on query and plans
+    const resolvedAlias = this.routeModelAlias(messages, activePlans.length > 0);
+    const provider = getProviderForAlias(resolvedAlias, this.config);
 
     // Call the model provider
-    const result = await provider.complete({
-      systemPrompt: activeSystemPrompt,
-      messages,
-      availableTools,
-      modelAlias: 'smart',
-    });
+    onProgress?.({ type: 'request_start' });
+    let result;
+    try {
+      result = await provider.complete({
+        systemPrompt: activeSystemPrompt,
+        messages,
+        availableTools,
+        modelAlias: resolvedAlias,
+      });
+    } finally {
+      onProgress?.({ type: 'request_end' });
+    }
 
     // 7. Log token usage
-    const modelConfig = this.config.modelAliases['smart'];
+    const modelConfig = this.config.modelAliases[resolvedAlias];
     const resolvedModelId = modelConfig ? modelConfig.modelId : 'claude-3-5-sonnet-20241022';
     await logTokenUsage(
       resolvedModelId,
@@ -312,5 +319,68 @@ export class AgentOrchestrator {
 
     // Recurse to let the assistant inspect the tool results and continue
     return this.runTurn(conversation, onProgress);
+  }
+
+  /**
+   * Dynamically routes the request to the most appropriate model alias.
+   * 
+   * @param messages The conversation history.
+   * @param hasActivePlans Whether there are active plans in the project.
+   * @returns The resolved model alias ('fast' | 'smart' | 'planner').
+   */
+  public routeModelAlias(messages: ConversationMessage[], hasActivePlans: boolean): ModelAlias {
+    const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user');
+    let userText = '';
+    if (lastUserMessage) {
+      if (typeof lastUserMessage.content === 'string') {
+        userText = lastUserMessage.content.toLowerCase();
+      } else if (Array.isArray(lastUserMessage.content)) {
+        userText = lastUserMessage.content
+          .map((b) => (b.type === 'text' ? b.text : ''))
+          .join(' ')
+          .toLowerCase();
+      }
+    }
+
+    // 1. Check if user is explicitly calling plan commands or requesting plans
+    if (
+      userText.startsWith('/plan') ||
+      userText.includes('create a plan') ||
+      userText.includes('draft a plan') ||
+      userText.includes('critique the plan') ||
+      userText.includes('architecture plan')
+    ) {
+      return 'planner';
+    }
+
+    // 2. If there are active plans, we can transition to 'fast' model execution steps,
+    // unless the query asks for complex architecting/refactoring.
+    if (hasActivePlans) {
+      if (
+        userText.includes('refactor') ||
+        userText.includes('design') ||
+        userText.includes('security') ||
+        userText.includes('optimize performance') ||
+        userText.includes('architect')
+      ) {
+        return 'smart';
+      }
+      return 'fast';
+    }
+
+    // 3. For simple/short conversational queries, route to fast model
+    if (
+      userText.includes('hello') ||
+      userText.includes('hi ') ||
+      userText.includes('explain') ||
+      userText.includes('what is') ||
+      userText.includes('where is') ||
+      userText.length < 25
+    ) {
+      return 'fast';
+    }
+
+    // 4. Default to smart model for general coding and tool-based executions
+    return 'smart';
   }
 }

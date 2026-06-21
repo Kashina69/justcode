@@ -5,9 +5,11 @@ import fs from 'fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Root of the project (compiled code in dist/config/prompts.js, root is two directories up)
-// Dev code is in src/config/prompts.ts, root is also two directories up
-const installDir = path.resolve(__dirname, '..', '..');
+// Resolve installation directory dynamically to support both dev (src/) and prod (dist/src/) layouts
+let installDir = path.resolve(__dirname, '..', '..');
+if (!fs.existsSync(path.join(installDir, 'prompts'))) {
+  installDir = path.resolve(__dirname, '..', '..', '..');
+}
 const promptsDir = path.join(installDir, 'prompts');
 
 /**

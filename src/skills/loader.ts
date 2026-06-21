@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 // @ts-ignore
 import { glob } from 'fs/promises';
@@ -8,7 +9,10 @@ import { parseSkillFile } from './parser.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const installDir = path.resolve(__dirname, '..', '..');
+let installDir = path.resolve(__dirname, '..', '..');
+if (!fsSync.existsSync(path.join(installDir, 'skills'))) {
+  installDir = path.resolve(__dirname, '..', '..', '..');
+}
 
 export class SkillLoader {
   private projectRoot: string;
