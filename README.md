@@ -13,7 +13,7 @@ A terminal-based, agentic AI coding assistant. Type code requests in natural lan
 ### Install from Git (Global)
 
 ```bash
-npm install -g git+https://github.com/kasahina69/justcode.git
+npm install -g github:Kashina69/justcode
 ```
 
 npm will automatically build TypeScript to `dist/` via the `prepare` hook and link the `justcode` binary.
@@ -21,7 +21,7 @@ npm will automatically build TypeScript to `dist/` via the `prepare` hook and li
 ### Install Locally (Development)
 
 ```bash
-git clone https://github.com/kahsina/justcode.git
+git clone https://github.com/Kashina69/justcode.git
 cd justcode
 npm install
 npm run build
