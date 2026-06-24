@@ -360,3 +360,7 @@ Three aliases route requests automatically based on query complexity:
 | `planner` | claude-3-5-sonnet / deepseek-coder | `/plan` drafting and critiquing |
 
 Routing is keyword-based on the last user message — no extra LLM call.
+
+
+
+find . -iname "*justcode*"
