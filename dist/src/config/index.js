@@ -32,6 +32,7 @@ export function loadAppConfig() {
                 modelId: process.env.MODEL_PLANNER || 'claude-3-5-sonnet-20241022',
             },
         },
+        providers: {},
     };
     // Try to load global config from ~/.agent/config.json or local config.json in project root
     let configPath = path.join(os.homedir(), '.agent', 'config.json');
@@ -52,6 +53,7 @@ export function loadAppConfig() {
                     smart: parsedConfig.modelAliases?.smart || defaults.modelAliases.smart,
                     planner: parsedConfig.modelAliases?.planner || defaults.modelAliases.planner,
                 },
+                providers: parsedConfig.providers || {},
             };
         }
     }

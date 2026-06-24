@@ -9,8 +9,14 @@ dotenv.config();
 export const MAX_MEMORY_RECALL_TOKENS = 4000;
 
 export interface ModelConfig {
-  provider: 'anthropic' | 'openai-compat';
+  provider: string; // references a provider name from providers, or 'anthropic' / 'openai-compat'
   modelId: string;
+}
+
+export interface ProviderConfig {
+  type: 'anthropic' | 'openai-compat';
+  apiKey: string;
+  endpoint?: string;
 }
 
 export interface AppConfig {
@@ -23,6 +29,7 @@ export interface AppConfig {
     smart: ModelConfig;
     planner: ModelConfig;
   };
+  providers?: Record<string, ProviderConfig>;
 }
 
 /**
@@ -52,6 +59,7 @@ export function loadAppConfig(): AppConfig {
         modelId: process.env.MODEL_PLANNER || 'claude-3-5-sonnet-20241022',
       },
     },
+    providers: {},
   };
 
   // Try to load global config from ~/.agent/config.json or local config.json in project root
@@ -74,6 +82,7 @@ export function loadAppConfig(): AppConfig {
           smart: parsedConfig.modelAliases?.smart || defaults.modelAliases.smart,
           planner: parsedConfig.modelAliases?.planner || defaults.modelAliases.planner,
         },
+        providers: parsedConfig.providers || {},
       };
     }
   } catch (error) {

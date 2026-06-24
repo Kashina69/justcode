@@ -25,4 +25,42 @@ describe('ProviderFactory', () => {
     const provider = getProviderForAlias('smart', dummyConfig);
     expect(provider).toBeInstanceOf(AnthropicMessagesProvider);
   });
+
+  it('should instantiate provider from custom config.providers map for anthropic type', () => {
+    const customConfig: AppConfig = {
+      ...dummyConfig,
+      modelAliases: {
+        ...dummyConfig.modelAliases,
+        fast: { provider: 'custom-anthropic', modelId: 'custom-model' }
+      },
+      providers: {
+        'custom-anthropic': {
+          type: 'anthropic',
+          apiKey: 'custom-anthropic-key',
+          endpoint: 'https://custom-anthropic.com'
+        }
+      }
+    };
+    const provider = getProviderForAlias('fast', customConfig);
+    expect(provider).toBeInstanceOf(AnthropicMessagesProvider);
+  });
+
+  it('should instantiate provider from custom config.providers map for openai-compat type', () => {
+    const customConfig: AppConfig = {
+      ...dummyConfig,
+      modelAliases: {
+        ...dummyConfig.modelAliases,
+        fast: { provider: 'custom-openai', modelId: 'custom-model' }
+      },
+      providers: {
+        'custom-openai': {
+          type: 'openai-compat',
+          apiKey: 'custom-openai-key',
+          endpoint: 'https://custom-openai.com'
+        }
+      }
+    };
+    const provider = getProviderForAlias('fast', customConfig);
+    expect(provider).toBeInstanceOf(OpenAiCompatibleProvider);
+  });
 });
