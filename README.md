@@ -12,6 +12,7 @@ A terminal-based, agentic AI coding assistant. Type code requests in natural lan
 
 ### Install from Git (Global)
 
+#### Windows
 On Windows, due to an npm bug where git URL installations are sometimes created as temporary broken symlinks, it is recommended to install via the GitHub tarball URL:
 
 ```bash
@@ -19,6 +20,17 @@ npm install -g https://github.com/kashina69/justcode/tarball/master
 
 # Or run on demand without global installation
 npx https://github.com/kashina69/justcode/tarball/master
+```
+
+#### macOS / Linux
+On macOS or Linux, you can install directly using the GitHub repository shortcode. If your npm is configured in a system directory (non-nvm), you may need to prefix global commands with `sudo`:
+
+```bash
+# Standard install (use sudo npm install -g ... if permission error occurs)
+npm install -g github:kashina69/justcode
+
+# Or run on demand without global installation
+npx github:kashina69/justcode
 ```
 
 ### Install Locally (Development)
