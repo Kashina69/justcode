@@ -15,12 +15,25 @@ import { buildCompleter } from './autocomplete.js';
 import { CliSpinner } from './spinner.js';
 import { CliContext } from './context.js';
 import { onConfirmDangerousTool, saveSessionMemoryAndExit, promptUser } from './repl.js';
+import { colors } from './colors.js';
 
 /**
  * Main CLI entry point.
  */
 async function main() {
-  console.log('\n=== 🤖 JUSTC0D3 🤖 ===\n');
+  console.log(`
+${colors.cyan}${colors.bold}     _             _                  _      
+    | |           | |                | |     
+    | |_   _  ___ | |_  ___  ___   __| | ___ 
+ _  | | | | |/ __|| __|/ __|/ _ \\ / _\` |/ _ \\
+| |_| | |_| |\\__ \\| |_| (__| (_) | (_| |  __/
+ \\___/ \\__,_||___/ \\__|\\___|\\___/ \\__,_|\\___|${colors.reset}
+
+  ${colors.cyan}${colors.bold}justcode${colors.reset} ${colors.dim}v0.1.0${colors.reset} • ${colors.italic}${colors.gray}Terminal-based agentic coding assistant${colors.reset}
+  ${colors.dim}─────────────────────────────────────────────────────────────────────${colors.reset}
+  Type ${colors.bold}${colors.cyan}/help${colors.reset} for instructions or ${colors.bold}${colors.cyan}/list${colors.reset} to view all slash commands.
+  ${colors.dim}─────────────────────────────────────────────────────────────────────${colors.reset}
+`);
 
   const context: CliContext = {
     rl: null as any,
