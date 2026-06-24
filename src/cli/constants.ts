@@ -5,7 +5,8 @@ export const SLASH_COMMANDS = [
   '/cost', '/skills', '/undo', '/sessions',
   '/session resume ', '/session list', '/analyze', '/anyalize',
   '/help', '/list', '/config', '/models',
-  '/db', '/db setup', '/db schema', '/db query', '/db ask', '/db memory', '/db revalidate'
+  '/db', '/db setup', '/db schema', '/db query', '/db ask', '/db memory', '/db revalidate',
+  '/theme'
 ];
 
 export const PROVIDER_OPTIONS = [

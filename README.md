@@ -163,6 +163,7 @@ On startup the tool initializes a session log, loads config, preloads skill name
 | `/db ask <question>` | Start a sub-session with the senior DB agent |
 | `/db memory` | View database schema cached memory nodes |
 | `/db revalidate` | Force schema introspection and cache revalidation |
+| `/theme` | Choose a premium color theme for the terminal output |
 | `@<skillname>` | Pin a skill for the rest of the chat session |
 | `!@<skillname>` | Mute/ignore a skill for the rest of the chat session |
 | `@<filepath>` | Inject whole file contents into the chat context |
@@ -387,6 +388,7 @@ On Exit:
 ~/.agent/
   config.json             ← global API keys and model config
   usage.log               ← global cumulative token & cost log
+  theme.json              ← active terminal color theme setting
 ```
 
 ---

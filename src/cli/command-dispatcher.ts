@@ -1,10 +1,11 @@
-import { colors } from './colors.js';
+import { colors, THEMES, saveTheme } from './colors.js';
 import { CliContext } from './context.js';
 import { printCostSummary } from './cost.js';
 import { handleModelsMenu } from './models.js';
 import { handleConfigMenu } from './config-menu.js';
 import { resumeSessionById, handleSessionsMenu } from './sessions.js';
 import { handleDbCommand } from './db-menu.js';
+import { selectOption } from './select-option.js';
 
 /**
  * Dispatches and executes slash commands.
@@ -69,6 +70,7 @@ export const handleCommand = async (
     console.log('                           - /db revalidate   Revalidate database schema and record changes');
     console.log(`  ${colors.bold}/cost${colors.reset}                  Show global token statistics and estimated cost summary`);
     console.log(`  ${colors.bold}/undo${colors.reset}                  Roll back the last file modification made by the agent`);
+    console.log(`  ${colors.bold}/theme${colors.reset}                 Choose a premium terminal color theme (One Dark, Catppuccin, etc.)`);
     console.log(`  ${colors.bold}/debug <on|off>${colors.reset}        Toggle detailed flow and tool latency trace logging`);
     console.log(`  ${colors.bold}/analyze${colors.reset}               Initiate codebase analysis to produce project documentation`);
 
@@ -289,6 +291,15 @@ export const handleCommand = async (
 
   if (lowerInput.startsWith('/db')) {
     return handleDbCommand(context, trimmedInput);
+  }
+
+  if (lowerInput === '/theme') {
+    const themeNames = Object.keys(THEMES);
+    const selectedIdx = await selectOption('Choose a terminal color theme:', themeNames);
+    const chosenTheme = themeNames[selectedIdx];
+    saveTheme(chosenTheme);
+    console.log(`\n🎨 ${colors.bold}${colors.green}Theme successfully updated to: ${chosenTheme}${colors.reset}\n`);
+    return 'sync';
   }
 
   return false;
