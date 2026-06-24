@@ -12,14 +12,14 @@ A terminal-based, agentic AI coding assistant. Type code requests in natural lan
 
 ### Install from Git (Global)
 
+On Windows, due to an npm bug where git URL installations are sometimes created as temporary broken symlinks, it is recommended to install via the GitHub tarball URL:
+
 ```bash
-npm install -g github:kashina69/justcode
+npm install -g https://github.com/kashina69/justcode/tarball/master
 
-# This downloads, compiles, and runs the CLI on demand without installing it globally.
-npx github:kashina69/justcode
+# Or run on demand without global installation
+npx https://github.com/kashina69/justcode/tarball/master
 ```
-
-npm will automatically build TypeScript to `dist/` via the `prepare` hook and link the `justcode` binary.
 
 ### Install Locally (Development)
 
