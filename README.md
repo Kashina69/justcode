@@ -33,6 +33,20 @@ npm install -g github:kashina69/justcode
 npx github:kashina69/justcode
 ```
 
+### Updating
+
+To update `justcode` to the latest version, run the installation command again with the `--force` flag to clear the local npm cache and pull the latest commits from GitHub:
+
+#### Windows
+```bash
+npm install -g https://github.com/kashina69/justcode/tarball/master --force
+```
+
+#### macOS / Linux
+```bash
+npm install -g github:kashina69/justcode --force
+```
+
 ### Install Locally (Development)
 
 ```bash
