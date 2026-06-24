@@ -18,6 +18,7 @@ export const KNOWN_TOOLS = new Set([
     'start_process',
     'check_process',
     'wait_process',
+    'ask_user',
 ]);
 /**
  * Bash commands that are read-only and safe to run with zero confirmation prompt.
@@ -164,7 +165,8 @@ export class SafetyGate {
             name === 'glob' ||
             name === 'search_memory' ||
             name === 'recall_memory' ||
-            name === 'get_memory_node') {
+            name === 'get_memory_node' ||
+            name === 'ask_user') {
             return { classification: 'safe' };
         }
         // Fallback — shouldn't be reached given KNOWN_TOOLS check above, but be safe

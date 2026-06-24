@@ -3,7 +3,8 @@ export const SLASH_COMMANDS = [
     '/skill', '/debug', '/plan ', '/plans', '/memory',
     '/cost', '/skills', '/undo', '/sessions',
     '/session resume ', '/session list', '/analyze', '/anyalize',
-    '/help', '/list', '/config', '/models'
+    '/help', '/list', '/config', '/models',
+    '/db', '/db setup', '/db schema', '/db query', '/db ask', '/db memory', '/db revalidate'
 ];
 export const PROVIDER_OPTIONS = [
     'Anthropic',

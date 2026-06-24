@@ -35,7 +35,15 @@ export class AgentOrchestrator {
         const shellHint = platform === 'win32'
             ? 'Windows — use cmd-compatible commands (dir, del, if exist) or explicit `powershell -Command "..."` for anything else'
             : 'POSIX — use standard Unix commands (ls, rm, &&)';
-        this.systemPrompt = (options.systemPrompt || readPromptSync('agent_system.txt')) + `\n\nHost: ${platform} — ${shellHint}`;
+        let basePrompt = options.systemPrompt || readPromptSync('agent_system.txt');
+        try {
+            const askUserGuidance = readPromptSync('ask_user_guidance.txt');
+            basePrompt += `\n\n${askUserGuidance}`;
+        }
+        catch {
+            // Ignored
+        }
+        this.systemPrompt = basePrompt + `\n\nHost: ${platform} — ${shellHint}`;
         this.pinnedSkills = options.pinnedSkills ?? new Set();
         this.mutedSkills = options.mutedSkills ?? new Set();
         this.planInjectionHeader = readTemplateSync('plan_injection_header.txt');

@@ -114,6 +114,8 @@ async function main() {
     completer,
   });
 
+  registry.setReadline(context.rl);
+
   // SIGINT handler
   context.rl.on('SIGINT', async () => {
     await context.saveSessionMemoryAndExit();

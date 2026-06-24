@@ -3,6 +3,7 @@ import { printCostSummary } from './cost.js';
 import { handleModelsMenu } from './models.js';
 import { handleConfigMenu } from './config-menu.js';
 import { resumeSessionById, handleSessionsMenu } from './sessions.js';
+import { handleDbCommand } from './db-menu.js';
 /**
  * Dispatches and executes slash commands.
  *
@@ -24,6 +25,7 @@ export const handleCommand = async (context, trimmedInput) => {
         console.log(`\n  ${colors.bold}Prompting & Usage:${colors.reset}`);
         console.log('    • Type your request (e.g., "Add email validation to user model") and press Enter.');
         console.log('    • The agent will choose the best tools (read, write, search, run shell commands) and execute them.');
+        console.log('    • If details are missing, the agent will prompt you with clarifying questions using the ask_user tool.');
         console.log('    • Pin a skill for the session by typing "@skillname" in your message.');
         console.log('    • Mute/ignore a skill for the session by typing "!@skillname" in your message.');
         console.log('    • Inject file context directly by typing "@filepath" or "@filepath:lines" (e.g. "@src/index.ts:10-20").');
@@ -50,6 +52,13 @@ export const handleCommand = async (context, trimmedInput) => {
         console.log(`  ${colors.bold}/plans${colors.reset}                 List active and archived design plans`);
         console.log(`  ${colors.bold}/plans archive <id>${colors.reset}    Archive a specific plan`);
         console.log(`  ${colors.bold}/memory${colors.reset}                Display the project timeline memory (.agent/memory.md)`);
+        console.log(`  ${colors.bold}/db${colors.reset}                    Open database administrator and design agent:`);
+        console.log('                           - /db setup        Run the database connection wizard');
+        console.log('                           - /db schema       Introspect database schema and show diagrams');
+        console.log('                           - /db query <sql>  Execute a SQL/NoSQL query (requires y/N for mutations)');
+        console.log('                           - /db ask <q>      Ask the DB agent a design/optimization question');
+        console.log('                           - /db memory       View database cached schema memory nodes');
+        console.log('                           - /db revalidate   Revalidate database schema and record changes');
         console.log(`  ${colors.bold}/cost${colors.reset}                  Show global token statistics and estimated cost summary`);
         console.log(`  ${colors.bold}/undo${colors.reset}                  Roll back the last file modification made by the agent`);
         console.log(`  ${colors.bold}/debug <on|off>${colors.reset}        Toggle detailed flow and tool latency trace logging`);
@@ -268,6 +277,9 @@ export const handleCommand = async (context, trimmedInput) => {
     if (lowerInput === '/config') {
         await handleConfigMenu(context.rl, context.resumePrompt);
         return 'async';
+    }
+    if (lowerInput.startsWith('/db')) {
+        return handleDbCommand(context, trimmedInput);
     }
     return false;
 };

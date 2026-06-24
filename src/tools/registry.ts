@@ -1,3 +1,4 @@
+import readline from 'readline';
 import { Tool } from './types.js';
 import { ReadFileTool } from './read_file.js';
 import { WriteFileTool } from './write_file.js';
@@ -13,6 +14,7 @@ import {
   RecordMemoryTool,
   GetMemoryNodeTool
 } from './memory_tools.js';
+import { AskUserTool } from './ask_user.js';
 
 export class ToolRegistry {
   private tools: Map<string, Tool> = new Map();
@@ -31,6 +33,7 @@ export class ToolRegistry {
     this.registerTool(new RecallMemoryTool());
     this.registerTool(new RecordMemoryTool());
     this.registerTool(new GetMemoryNodeTool());
+    this.registerTool(new AskUserTool());
 
     // Sanity-check: every registered tool must appear in the shared KNOWN_TOOLS set.
     // This ensures the safety gate and dispatcher are always in sync.
@@ -41,6 +44,16 @@ export class ToolRegistry {
           `Add it to KNOWN_TOOLS to keep the safety gate in sync.`
         );
       }
+    }
+  }
+
+  /**
+   * Sets the active readline interface on any tools that require it.
+   */
+  setReadline(rl: readline.Interface): void {
+    const askUser = this.tools.get('ask_user') as AskUserTool;
+    if (askUser) {
+      askUser.setReadline(rl);
     }
   }
 

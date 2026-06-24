@@ -109,7 +109,9 @@ On startup the tool initializes a session log, loads config, preloads skill name
 ## Features
 
 - **Agentic task execution** — reads, writes, edits, and runs shell commands in your project directory
-- **Dynamic model routing** — auto-routes prompts to `fast`, `smart`, or `planner` model based on query complexity
+- **Dynamic model routing** — auto-routes prompts to `fast`, `smart`, or `planner` model based on query complexity using centralized `routeByTaskDescription`
+- **DB Admin Agent** — Interactive database administration sub-session (`/db`) for schema introspection, query execution (with confirm safety gate), text/Mermaid ERDs, and AI DB design engineer helper
+- **AI Question Asker** — AI agent can query the user for missing parameters/details mid-execution using checkbox menus, single-select, or text inputs via the `ask_user` tool
 - **Three-tier safety gate** — `safe` commands run silently, `write` commands run and are logged, only truly `dangerous` commands prompt `y/N`
 - **Background process job handles** — `start_process` returns a `jobId`; `check_process` / `wait_process` poll it — agent never re-issues the same command to check status
 - **Non-blocking bash execution** — servers and long-running commands run in the background; REPL is never blocked
@@ -154,6 +156,13 @@ On startup the tool initializes a session log, loads config, preloads skill name
 | `/plans archive <id>` | Archive an active plan |
 | `/sessions` | List all project sessions with cost summaries |
 | `/session resume <id>` | Resume a past conversation |
+| `/db` / `/db help` | Show DB agent sub-commands and help |
+| `/db setup` | Run interactive connection setup wizard |
+| `/db schema` | Introspect database schema and show diagrams |
+| `/db query <sql>` | Execute read/write queries (mutations prompt y/N) |
+| `/db ask <question>` | Start a sub-session with the senior DB agent |
+| `/db memory` | View database schema cached memory nodes |
+| `/db revalidate` | Force schema introspection and cache revalidation |
 | `@<skillname>` | Pin a skill for the rest of the chat session |
 | `!@<skillname>` | Mute/ignore a skill for the rest of the chat session |
 | `@<filepath>` | Inject whole file contents into the chat context |
@@ -251,6 +260,8 @@ On Exit:
 | `index.ts` | `estimateCost()` | Per-model token cost estimation |
 | `index.ts` | `onConfirmDangerousTool()` | Safety prompt (y/N) |
 | `index.ts` | `completer()` | Tab autocomplete: skill names, slash commands, file paths |
+| `multi-select.ts` | `multiSelect()` | Checkbox-style multi-select CLI helper |
+| `db-menu.ts` | `handleDbCommand()` | Handles /db commands and launches sub-sessions |
 | `spinner.ts` | `CliSpinner` | Terminal loading spinner with cursor hide/show |
 | `gitignore-filter.ts` | `buildIgnoreFilter()` | Reads `.gitignore` + hardcoded patterns; returns path filter fn for tab completer |
 
@@ -258,7 +269,8 @@ On Exit:
 | File | Function | Purpose |
 |---|---|---|
 | `index.ts` | `AgentOrchestrator.runTurn()` | Main agentic loop: context injection, LLM call, tool dispatch, flow events |
-| `index.ts` | `routeModelAlias()` | Auto-routes query to fast/smart/planner model |
+| `router.ts` | `routeByTaskDescription()` | Centralized model routing utility based on complexity |
+| `router.ts` | `routeModelAlias()` | Auto-routes query using `routeByTaskDescription` |
 
 `AgentOrchestrator` accepts `pinnedSkills` and `mutedSkills` sets from the CLI session state. These override the automatic skill matcher result on every turn.
 
@@ -306,6 +318,7 @@ On Exit:
 | `edit_file.ts` | `edit_file` | Targeted inline file edits |
 | `grep.ts` | `grep` | Regex pattern search in files |
 | `glob.ts` | `glob` | File pattern matching |
+| `ask_user.ts` | `ask_user` | Ask user clarifying questions mid-execution (text/select/checkbox) |
 | `memory_tools.ts` | `search_memory` | Index-only keyword lookup |
 | `memory_tools.ts` | `recall_memory` | Full BFS graph context retrieval (primary memory tool) |
 | `memory_tools.ts` | `record_memory` | Write a new memory node |
@@ -341,6 +354,10 @@ On Exit:
 <your-project>/
   .agent/
     memory.md             ← timeline of session summaries
+    db/
+      config.json         ← database connection settings
+      schema.md           ← auto-generated database schema diagrams
+      memory/             ← database cached schema memory
     memory/
       index.json          ← lightweight memory graph index (ids, summaries, tags)
       nodes/
@@ -379,7 +396,7 @@ On Exit:
 ```bash
 npm run dev          # run in development (tsx, no build step)
 npm run build        # compile TypeScript to dist/
-npm run test         # run all 63 unit and integration tests
+npm run test         # run all unit and integration tests
 npm install -g .     # install globally from local source
 ```
 

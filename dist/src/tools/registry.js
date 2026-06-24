@@ -6,6 +6,7 @@ import { GrepTool } from './grep.js';
 import { GlobTool } from './glob.js';
 import { KNOWN_TOOLS } from '../safety/gate.js';
 import { SearchMemoryTool, RecallMemoryTool, RecordMemoryTool, GetMemoryNodeTool } from './memory_tools.js';
+import { AskUserTool } from './ask_user.js';
 export class ToolRegistry {
     tools = new Map();
     constructor() {
@@ -22,6 +23,7 @@ export class ToolRegistry {
         this.registerTool(new RecallMemoryTool());
         this.registerTool(new RecordMemoryTool());
         this.registerTool(new GetMemoryNodeTool());
+        this.registerTool(new AskUserTool());
         // Sanity-check: every registered tool must appear in the shared KNOWN_TOOLS set.
         // This ensures the safety gate and dispatcher are always in sync.
         for (const [name] of this.tools) {
@@ -29,6 +31,15 @@ export class ToolRegistry {
                 throw new Error(`[ToolRegistry] Tool "${name}" is registered in the dispatcher but missing from KNOWN_TOOLS in gate.ts. ` +
                     `Add it to KNOWN_TOOLS to keep the safety gate in sync.`);
             }
+        }
+    }
+    /**
+     * Sets the active readline interface on any tools that require it.
+     */
+    setReadline(rl) {
+        const askUser = this.tools.get('ask_user');
+        if (askUser) {
+            askUser.setReadline(rl);
         }
     }
     /**
