@@ -5,10 +5,7 @@ import { AppConfig } from '../config/index.js';
 import { readPromptSync } from '../config/prompts.js';
 import { parseSkillFile } from '../skills/parser.js';
 
-export interface PlanList {
-  active: string[];
-  archived: string[];
-}
+import { PlanList } from './types.js';
 
 export class PlanningManager {
   private projectRoot: string;

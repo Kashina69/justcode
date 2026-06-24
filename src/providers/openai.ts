@@ -9,6 +9,7 @@ import {
 } from './types.js';
 import { AppConfig } from '../config/index.js';
 import { SessionLogger } from '../memory/logger.js';
+import { FALLBACK_MODEL_OPENAI, DEFAULT_OPENAI_ENDPOINT } from '../config/constants.js';
 
 export class OpenAiCompatibleProvider implements ModelProvider {
   private config: AppConfig;
@@ -33,10 +34,10 @@ export class OpenAiCompatibleProvider implements ModelProvider {
     const logger = SessionLogger.getInstance();
 
     const modelConfig = this.config.modelAliases[request.modelAlias];
-    const modelId = modelConfig ? modelConfig.modelId : 'gpt-4o-mini';
+    const modelId = modelConfig ? modelConfig.modelId : FALLBACK_MODEL_OPENAI;
 
     const apiKey = this.config.openaiApiKey;
-    const endpoint = this.config.openaiEndpoint || 'https://api.openai.com/v1';
+    const endpoint = this.config.openaiEndpoint || DEFAULT_OPENAI_ENDPOINT;
 
     // Map messages history to OpenAI payload format
     const openAiMessages = this.mapMessages(request.messages, request.systemPrompt);

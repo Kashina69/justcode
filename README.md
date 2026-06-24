@@ -116,8 +116,9 @@ On startup the tool initializes a session log, loads config, preloads skill name
 - **Interactive CLI spinner** — animated loading indicator while AI thinks or tools run
 - **Flow logs** — dim single-line trace of every internal step (skill match, model route, tool classification) printed live; toggle with `/debug off`
 - **Collapsible tool output** — results over 15 lines fold automatically; type `e` to expand the last one
-- **Tab autocomplete** — press Tab to complete `/skill pin <name>`, slash commands, and file paths; gitignore-aware file suggestions
-- **Manual skill control** — `/skill pin <name>` forces a skill active; `/skill mute <name>` excludes it; `/skill reset` returns to automatic matching
+- **Enhanced Tab Autocomplete** — press Tab to complete slash commands, skill names, and file/folder locations (with gitignore-aware auto-suggestions).
+- **Manual skill control** — pin skills using `/skill pin` or typing `@skillname` in your message; mute skills using `/skill mute` or typing `!@skillname` in your message; `/skill reset` returns to automatic matching.
+- **File & Line Context Injection** — hyperfocus the AI on specific files or lines by writing `@filepath` or `@filepath:lines` (e.g. `@src/cli/repl.ts:30-50`) in your prompt to inject target file blocks directly into context.
 - **Structured memory graph** — persistent, interconnected knowledge nodes stored per-project in `.agent/memory/`
 - **Single-pass BFS recall** — recall relevant memory clusters in one deterministic tool call, never a loop
 - **Token budget enforcement** — memory retrieval is hard-capped by `MAX_MEMORY_RECALL_TOKENS`
@@ -153,7 +154,12 @@ On startup the tool initializes a session log, loads config, preloads skill name
 | `/plans archive <id>` | Archive an active plan |
 | `/sessions` | List all project sessions with cost summaries |
 | `/session resume <id>` | Resume a past conversation |
+| `@<skillname>` | Pin a skill for the rest of the chat session |
+| `!@<skillname>` | Mute/ignore a skill for the rest of the chat session |
+| `@<filepath>` | Inject whole file contents into the chat context |
+| `@<filepath>:<lines>` | Inject specific line range or line (e.g. `@src/index.ts:10-25`) |
 | `Ctrl+C` | Save session and exit |
+
 
 ### Tab Autocomplete
 
@@ -162,8 +168,10 @@ On startup the tool initializes a session log, loads config, preloads skill name
 | `/[TAB]` | All slash commands |
 | `/skill pin [TAB]` | Available skill names |
 | `/skill mute [TAB]` | Available skill names |
-| `src/cli/[TAB]` | Files in `src/cli/` (gitignore-filtered) |
-| `./[TAB]` | Files in current dir (node_modules etc. excluded) |
+| `@[TAB]` | Available skill names and matching files/directories in current dir |
+| `!@[TAB]` | Available skill names |
+| `[partial path][TAB]` | Files and directories matching the input prefix in current dir (gitignore-filtered) |
+| `src/cli/[TAB]` | Files/directories inside `src/cli/` |
 
 ---
 

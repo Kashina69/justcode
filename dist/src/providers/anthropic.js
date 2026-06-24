@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { SessionLogger } from '../memory/logger.js';
+import { FALLBACK_MODEL_ANTHROPIC, DEFAULT_MAX_TOKENS, THINKING_MODEL_BUDGET_TOKENS, THINKING_MODEL_MAX_TOKENS } from '../config/constants.js';
 export class AnthropicMessagesProvider {
     anthropic;
     config;
@@ -32,7 +33,7 @@ export class AnthropicMessagesProvider {
         const logger = SessionLogger.getInstance();
         // Resolve the real model ID using the config alias map
         const modelConfig = this.config.modelAliases[request.modelAlias];
-        const modelId = modelConfig ? modelConfig.modelId : 'claude-3-5-sonnet-20241022';
+        const modelId = modelConfig ? modelConfig.modelId : FALLBACK_MODEL_ANTHROPIC;
         // Map messages
         const mappedMessages = this.mapMessages(request.messages);
         // Apply prompt caching to messages
@@ -49,7 +50,7 @@ export class AnthropicMessagesProvider {
         ];
         const params = {
             model: modelId,
-            max_tokens: 4000,
+            max_tokens: DEFAULT_MAX_TOKENS,
             system: systemPromptBlocks,
             messages: cachedMessages,
         };
@@ -58,9 +59,9 @@ export class AnthropicMessagesProvider {
         if (modelId.includes('3-7') || modelId.includes('3.7')) {
             params.thinking = {
                 type: 'enabled',
-                budget_tokens: 2000
+                budget_tokens: THINKING_MODEL_BUDGET_TOKENS
             };
-            params.max_tokens = 8000;
+            params.max_tokens = THINKING_MODEL_MAX_TOKENS;
         }
         if (mappedTools.length > 0) {
             params.tools = mappedTools;

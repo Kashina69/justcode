@@ -4,7 +4,8 @@ import os from 'os';
 import path from 'path';
 // Load environment variables from .env file in the current working directory.
 dotenv.config();
-export const MAX_MEMORY_RECALL_TOKENS = 4000;
+import { MAX_MEMORY_RECALL_TOKENS, DEFAULT_MODEL_FAST, DEFAULT_MODEL_SMART, DEFAULT_MODEL_PLANNER, DEFAULT_OPENAI_ENDPOINT, AGENT_DIR_NAME, CONFIG_JSON_FILENAME } from './constants.js';
+export { MAX_MEMORY_RECALL_TOKENS };
 /**
  * Loads the application configuration from environment variables and config files.
  * Defaults are provided if configurations are missing.
@@ -17,27 +18,27 @@ export function loadAppConfig() {
         anthropicApiKey: process.env.ANTHROPIC_API_KEY,
         anthropicEndpoint: process.env.ANTHROPIC_API_ENDPOINT,
         openaiApiKey: process.env.OPENAI_API_KEY,
-        openaiEndpoint: process.env.OPENAI_API_ENDPOINT || 'https://api.openai.com/v1',
+        openaiEndpoint: process.env.OPENAI_API_ENDPOINT || DEFAULT_OPENAI_ENDPOINT,
         modelAliases: {
             fast: {
                 provider: 'anthropic',
-                modelId: process.env.MODEL_FAST || 'claude-3-5-haiku-20241022',
+                modelId: process.env.MODEL_FAST || DEFAULT_MODEL_FAST,
             },
             smart: {
                 provider: 'anthropic',
-                modelId: process.env.MODEL_SMART || 'claude-3-5-sonnet-20241022',
+                modelId: process.env.MODEL_SMART || DEFAULT_MODEL_SMART,
             },
             planner: {
                 provider: 'anthropic',
-                modelId: process.env.MODEL_PLANNER || 'claude-3-5-sonnet-20241022',
+                modelId: process.env.MODEL_PLANNER || DEFAULT_MODEL_PLANNER,
             },
         },
         providers: {},
     };
     // Try to load global config from ~/.agent/config.json or local config.json in project root
-    let configPath = path.join(os.homedir(), '.agent', 'config.json');
+    let configPath = path.join(os.homedir(), AGENT_DIR_NAME, CONFIG_JSON_FILENAME);
     if (!process.env.VITEST && !fs.existsSync(configPath)) {
-        configPath = path.join(process.cwd(), 'config.json');
+        configPath = path.join(process.cwd(), CONFIG_JSON_FILENAME);
     }
     try {
         if (fs.existsSync(configPath)) {
@@ -66,7 +67,7 @@ export function loadAppConfig() {
  * Returns the path to the global user config file in home directory.
  */
 export function getGlobalConfigPath() {
-    return path.join(os.homedir(), '.agent', 'config.json');
+    return path.join(os.homedir(), AGENT_DIR_NAME, CONFIG_JSON_FILENAME);
 }
 /**
  * Syncs the provided configuration parameters to the global config file.

@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll } from 'vitest';
-import { BashTool } from '../../src/tools/bash.js';
+import { BashTool } from '../../src/tools/bash/index.js';
 describe('BashTool', () => {
     afterAll(() => {
         BashTool.cleanup();

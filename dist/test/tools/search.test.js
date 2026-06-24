@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { GrepTool } from '../../src/tools/grep.js';
 import { GlobTool } from '../../src/tools/glob.js';
-import { BashTool } from '../../src/tools/bash.js';
+import { BashTool } from '../../src/tools/bash/index.js';
 describe('Search & Exec Tools', () => {
     it('should find text in package.json using GrepTool', async () => {
         const tool = new GrepTool();

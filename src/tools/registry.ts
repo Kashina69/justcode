@@ -2,7 +2,7 @@ import { Tool } from './types.js';
 import { ReadFileTool } from './read_file.js';
 import { WriteFileTool } from './write_file.js';
 import { EditFileTool } from './edit_file.js';
-import { BashTool, StartProcessTool, CheckProcessTool, WaitProcessTool } from './bash.js';
+import { BashTool, StartProcessTool, CheckProcessTool, WaitProcessTool } from './bash/index.js';
 import { GrepTool } from './grep.js';
 import { GlobTool } from './glob.js';
 import { ToolDefinition } from '../providers/types.js';
