@@ -1,0 +1,18 @@
+{
+    "projectStats": {
+        "totalInputTokens": 28588,
+        "totalOutputTokens": 1152,
+        "totalCostUsd": 0.002249
+    },
+    "sessions": [
+        {
+            "id": "1782103268434",
+            "createdAt": "2026-06-22T04:41:34.904Z",
+            "updatedAt": "2026-06-22T09:49:27.146Z",
+            "inputTokens": 28588,
+            "outputTokens": 1152,
+            "costUsd": 0.002249,
+            "summary": "Active conversation..."
+        }
+    ]
+}

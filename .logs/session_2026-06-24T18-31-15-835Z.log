@@ -1,0 +1,134 @@
+[SYSTEM] [2026-06-24T18:31:15.837Z] Session log initiated.
+
+==================== API REQUEST ====================
+URL: Anthropic API (claude-3-5-sonnet-20241022)
+Time: 2026-06-24T18:31:15.838Z
+Payload:
+{
+  "model": "claude-3-5-sonnet-20241022",
+  "max_tokens": 4000,
+  "system": [
+    {
+      "type": "text",
+      "text": "System Instruction",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Say hello",
+          "cache_control": {
+            "type": "ephemeral"
+          }
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "name": "read_file",
+      "description": "Reads a file",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    }
+  ]
+}
+=====================================================
+
+
+==================== API RESPONSE ====================
+Duration: 0ms
+Time: 2026-06-24T18:31:15.839Z
+Response:
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "Hello, this is a response."
+    },
+    {
+      "type": "tool_use",
+      "id": "tool-use-id-1",
+      "name": "read_file",
+      "input": {
+        "path": "plan.md"
+      }
+    }
+  ],
+  "usage": {
+    "input_tokens": 15,
+    "output_tokens": 25
+  }
+}
+======================================================
+
+
+==================== API REQUEST ====================
+URL: Anthropic API (claude-3-5-sonnet-20241022)
+Time: 2026-06-24T18:31:15.852Z
+Payload:
+{
+  "model": "claude-3-5-sonnet-20241022",
+  "max_tokens": 4000,
+  "system": [
+    {
+      "type": "text",
+      "text": "System Instruction",
+      "cache_control": {
+        "type": "ephemeral"
+      }
+    }
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "Say hello",
+          "cache_control": {
+            "type": "ephemeral"
+          }
+        }
+      ]
+    }
+  ]
+}
+=====================================================
+
+
+==================== API RESPONSE ====================
+Duration: 0ms
+Time: 2026-06-24T18:31:15.852Z
+Response:
+{
+  "content": [
+    {
+      "type": "thinking",
+      "thinking": "Claude thinking content here"
+    },
+    {
+      "type": "text",
+      "text": "Hello, this is a response."
+    }
+  ],
+  "usage": {
+    "input_tokens": 15,
+    "output_tokens": 25,
+    "cache_read_input_tokens": 10,
+    "cache_creation_input_tokens": 5
+  }
+}
+======================================================
+

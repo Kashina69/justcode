@@ -1,0 +1,18 @@
+{
+    "openaiApiKey": "",
+    "openaiEndpoint": "https://api.deepseek.com",
+    "modelAliases": {
+        "fast": {
+            "provider": "openai-compat",
+            "modelId": "deepseek-chat"
+        },
+        "smart": {
+            "provider": "openai-compat",
+            "modelId": "deepseek-coder"
+        },
+        "planner": {
+            "provider": "openai-compat",
+            "modelId": "deepseek-coder"
+        }
+    }
+}

@@ -1,0 +1,2753 @@
+[SYSTEM] [2026-06-22T04:41:32.477Z] Session log initiated.
+
+==================== API REQUEST ====================
+URL: https://api.deepseek.com/chat/completions (deepseek-v4-flash)
+Time: 2026-06-22T04:41:32.479Z
+Payload:
+{
+  "model": "deepseek-v4-flash",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are justcode, a terminal-based agentic coding assistant. You help developers plan and implement codebase changes.\n\n## Context discipline\n- Do not read a file's contents unless you're about to edit it or need its internal logic to make a decision.\n- For status or structure questions, check `agent/folder-structure.md` or list directories — don't read file contents to answer them.\n- Fetch only what the task needs. Don't run broad directory scans unless a targeted lookup fails.\n\n## Planning\n- Trivial, single-concern edits: no upfront plan, just make the change.\n- Multi-file or architecturally significant changes: state a brief 2-4 line plan (files + rationale) once, before acting. No flow diagrams, no restating it afterward.\n- Anything substantial enough to need real planning should go through `/plan`, not be re-litigated here.\n\nHost: linux — POSIX — use standard Unix commands (ls, rm, &&)\n\n## Historical Project Decisions (Project Memory)\nThe following is a prose log of past decisions and context for this project. Keep these decisions in mind and ensure your choices do not conflict with them:\n\n[2026-06-22T04:41:03.140Z] - Failed to summarize session automatically: OpenAI Provider HTTP Error 401: {\"error\":{\"message\":\"Authentication Fails, Your api key: ****eac5 is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}\n\n\n## Active skills for this task\nThe skills below were selected by the harness for this task, not by you — no classification step, this is fixed. Follow them as written. If a skill conflicts with the developer's explicit request, follow the skill and say why in one line.\n\n## Skill: coding-efficiency\n# Coding & Efficiency Standards\n\nHard constraints, not style preferences.\n\n## Output style\n1. No filler, greetings, or restated plans. Go directly to the action.\n2. Do not explain what you're about to do before doing it — the diff or command output speaks for itself.\n3. Do not summarize after completing, unless asked. No \"Here's what I did\" recap.\n4. One sentence max when answering a direct question.\n5. If you catch yourself re-evaluating the same decision twice, stop and execute the first viable option.\n6. Before substantive output, state a one-line budget: `[budget: ~N lines / files]`. This is a target, not a ceiling — never cut a needed defensive check or truncate a correct answer just to hit it.\n7. When you resolve a non-obvious bug or environment quirk mid-task (not just at task completion), call `record_memory` for that specific finding immediately — don't wait to fold it into an end-of-task summary, and don't let it go unrecorded because the overall task already gets a memory node.\n8. If a verification step produces an ambiguous or empty result, fix it or explicitly state you're abandoning it and why — don't silently move to a different check without comment.\n9. After stopping a process you started, verify it's actually stopped (re-check the port/process, don't assume a non-zero exit code means success without reading what it actually says).\n10. Terseness applies to filler, not to material caveats. If you privately reason through a real limitation or risk (deployment portability, a known edge case, a tradeoff the developer should know about), state it in one line in your response — don't resolve it silently and move on.\n\n## Before writing new code, adding a dependency, or creating an abstraction\nWalk this ladder, stop at the first rung that holds:\n1. **Existence** — does this need to exist at all?\n2. **Standard library** — does the language/runtime provide it natively?\n3. **Platform** — does the environment provide it?\n4. **Minimal package** — is there a small, already-installed library that does it well?\n5. **Custom code** — only then, write the minimum required.\n\nExceptions — always implemented fully regardless of the ladder above:\n- **Security**: cryptographic verification, sanitization, permission checks\n- **Trust-boundary validation**: input schema checks at API borders\n- **Accessibility**: ARIA labels, semantic markup, keyboard focus states\n- **Data-loss prevention**: backups, transactions, confirmations, rollbacks\n\n## Code quality\n- Defensive by default: null/undefined checks, empty-array validation, type checks, real error handling.\n- Surgical scope: change exactly what the task requires, across as many files as the task genuinely touches in one turn. Don't artificially split one coherent task into multiple turns, and don't touch files outside its scope.\n\n## Skill: nextjs-conventions\n# Next.js-Specific Gotchas\n\n- params/searchParams/cookies()/headers() are async since Next.js 15 — always await before accessing properties.\n- Don't rely on __dirname for runtime file paths — webpack/Turbopack bundling doesn't preserve it reliably. Use process.cwd() or an explicitly passed root path.\n\n## Skill: analyze\nROLE\nYou are analyzing an existing codebase to produce a written profile of it. This\nprofile will be loaded into every future coding session as static context, so\nfuture AI-assisted work matches this codebase's actual conventions instead of\ngeneric defaults. Accuracy matters more than completeness — a wrong claim here\nactively misleads every future session that reads it.\n\nOBJECTIVE\nProduce three files in a new top-level `agent/` folder (not `.agent/` — this one\nis meant to be human-readable and version-controlled):\n\n  agent/project-overview.md   — what this project is and does\n  agent/folder-structure.md   — annotated map of the codebase\n  agent/code-conventions.md   — observed coding standards, with evidence\n\nHARD RULES — read these before starting\n1. Document what IS, not what SHOULD be. You are not writing a style guide of\n   best practices — you are recording the actual, current conventions of this\n   specific codebase, even if they're imperfect or inconsistent.\n2. Never state a convention without pointing to a real example. Every claim in\n   code-conventions.md must cite at least one specific file and, where useful,\n   a line number or function name. \"This codebase uses camelCase for functions\"\n   is not acceptable on its own — \"Functions use camelCase, e.g. getUserById in\n   src/services/user.ts\" is.\n3. If you find inconsistency, report it as inconsistency. Do not silently pick\n   the version you think is cleaner and present it as the standard. State which\n   pattern is dominant (with a rough file count) and which files are outliers.\n   Future sessions need to know the codebase isn't uniform, not be told a lie\n   that it is.\n4. Trust config files over inferred patterns. eslint configs, prettier configs,\n   tsconfig.json, .editorconfig, and similar are ground truth — read them\n   directly rather than guessing the standard from a handful of code samples.\n5. No padded prose. Bullet points and short, concrete statements. A future\n   session reading this should get the facts in seconds, not paragraphs.\n6. Sample broadly, not narrowly. Read files from every major directory, not\n   just the first few you encounter — conventions can differ between, say, the\n   API layer and the frontend, and you need to catch that.\n\nPROCESS\n\nStep 1 — Map the structure\n- Get a full directory tree, excluding node_modules, build output, .git, lock\n  files, and other generated/vendored content.\n- For each top-level and significant second-level directory, open 2-3\n  representative files to determine its actual purpose (don't guess from the\n  folder name alone — \"utils\" can mean very different things).\n\nStep 2 — Identify the stack\n- Read package.json / requirements.txt / go.mod / Cargo.toml / etc.\n- Note the language(s), frameworks, major dependencies, build tooling, and\n  package manager in use.\n- Note the framework's major version specifically (e.g. \"Next.js 15.2\") — this\n  matters more than it sounds like it should, since framework conventions\n  shift between major versions.\n\nStep 3 — Determine what the project actually does\n- Read the README if one exists.\n- Read the package/project description field if present.\n- Look at entry points: main files, route definitions, CLI command\n  registrations, exported public API surface.\n- Summarize: what does this software do, who is it for, what are its main\n  user-facing or system-facing capabilities.\n\nStep 4 — Sample real code across the codebase\n- Read at least 2-3 files from each major directory identified in Step 1.\n- Look specifically for: naming conventions (files, functions, variables,\n  types), function length/decomposition style, error-handling approach\n  (exceptions vs return codes vs Result types, etc.), comment density and\n  style, import/module organization, testing approach and coverage level,\n  any consistent architectural pattern (e.g. repository pattern, MVC, hooks-\n  based, etc.).\n\nStep 5 — Extract conventions, with evidence\n- For each convention you identify, note: the pattern itself, a specific\n  example (file + line/function), and whether it's consistent throughout or\n  has exceptions.\n- Cross-check against any linter/formatter config found in Step 2 — if a\n  config exists, quote its actual rules rather than re-deriving them from\n  code samples.\n\nStep 6 — Write the three output files\n\n  agent/project-overview.md\n    - One paragraph: what this project is and who it's for\n    - Tech stack (language, framework + version, key dependencies)\n    - Main capabilities / feature areas (bullet list)\n    - Entry points (where execution starts, where routes/commands are defined)\n\n  agent/folder-structure.md\n    - Annotated directory tree (major folders only, not every file)\n    - One line per folder: its actual purpose, based on what you read in it,\n      not what its name implies\n    - Note any folder whose contents don't match what its name suggests\n\n  agent/code-conventions.md\n    - Naming conventions (files, functions, variables, types) — with examples\n    - Error-handling pattern — with examples\n    - Testing approach (framework, location, what's covered) — with examples\n    - Formatting/linting rules — quoted directly from config files if present\n    - Any consistent architectural pattern in use — with examples\n    - A clearly labeled \"Inconsistencies\" section listing anywhere the\n      codebase doesn't follow one rule uniformly, with the dominant pattern\n      and the outliers named by file\n\nDO NOT\n- Invent conventions the codebase doesn't actually demonstrate\n- Smooth over inconsistencies into a single idealized rule\n- Pad output with generic software-engineering advice not grounded in what you\n  actually read\n- Skip directories because they look unimportant — an undocumented convention\n  in a \"minor\" folder is still a convention a future session needs to match\n\nWHEN DONE\nReport which files you read to produce each claim, so a human can spot-check\nthis analysis before it becomes load-bearing context for every future session."
+    },
+    {
+      "role": "user",
+      "content": "in this project the hooks folder summarize the folder what it does and what its internal files does and write it i a md file."
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "read_file",
+        "description": "Reads the entire contents of a file at the specified path.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to read, relative or absolute."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "write_file",
+        "description": "Writes complete contents to a file at the specified path. Creates parent directories if they do not exist.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to write, relative or absolute."
+            },
+            "content": {
+              "type": "string",
+              "description": "The content to write to the file."
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "edit_file",
+        "description": "Edits an existing file by replacing specific blocks of text. Edits are applied in the order specified.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to edit."
+            },
+            "edits": {
+              "type": "array",
+              "description": "A list of edit search/replace chunks to execute.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "oldText": {
+                    "type": "string",
+                    "description": "The exact lines of text to be replaced (must match exactly in the file including whitespace)."
+                  },
+                  "newText": {
+                    "type": "string",
+                    "description": "The new replacement text."
+                  }
+                },
+                "required": [
+                  "oldText",
+                  "newText"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path",
+            "edits"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "bash",
+        "description": "Executes a shell command and returns its output. For commands expected to take more than a few seconds (npm install, build, compile, test, dev server), use start_process instead — it returns a jobId you can poll without re-issuing the command.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to run."
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "start_process",
+        "description": "Starts a command as a tracked background process and returns a jobId immediately. Use this for npm install, npm run build, npx next build, test runs, dev servers — any command expected to take more than a few seconds. After starting, call check_process or wait_process with the returned jobId to poll its status. NEVER re-issue start_process for the same logical operation to check if it finished — use wait_process.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to start in the background."
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "check_process",
+        "description": "Returns the current status of a background process started with start_process. Returns running state, exit code (if finished), and any new output since the last check.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "description": "The jobId returned by start_process."
+            }
+          },
+          "required": [
+            "jobId"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "wait_process",
+        "description": "Polls a background process until it completes or the timeout is reached. Use this instead of re-issuing the original command when waiting for npm install, builds, or tests. Returns the exit code, completion status, and full output on completion.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "description": "The jobId returned by start_process."
+            },
+            "timeoutMs": {
+              "type": "number",
+              "description": "Maximum milliseconds to wait before returning (default: 15000). Use 60000+ for npm install or builds."
+            }
+          },
+          "required": [
+            "jobId"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "grep",
+        "description": "Searches for text patterns inside files in a directory recursively (ignores node_modules and .git by default).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "The text string or regex pattern to search for."
+            },
+            "path": {
+              "type": "string",
+              "description": "The directory path to search in (defaults to current project root)."
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "glob",
+        "description": "Finds files matching a glob pattern (e.g. \"src/**/*.ts\").",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "The glob pattern to match (e.g. \"**/*.json\")."
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_memory",
+        "description": "Searches the memory index cache by keyword to identify matching node summaries and tags.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query topic keywords."
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "The maximum matches to return (default 8)."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "recall_memory",
+        "description": "Retrieves relevant memory node content clusters by executing a keyword search and BFS graph expansion.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The query topic keywords to seed the search."
+            },
+            "maxSeedNodes": {
+              "type": "number",
+              "description": "Maximum seed nodes to expand from (default 3)."
+            },
+            "maxHops": {
+              "type": "number",
+              "description": "Maximum hops to walk (default 2)."
+            },
+            "tokenBudget": {
+              "type": "number",
+              "description": "Max token budget for returned content (default 4000)."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "record_memory",
+        "description": "Records a new structured memory node and links it to existing related nodes.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string",
+              "description": "One-line summary description of the fact or decision."
+            },
+            "content": {
+              "type": "string",
+              "description": "Detailed content body of the memory."
+            },
+            "relatedTo": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Array of related memory node ID strings."
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Free-form topic tags."
+            },
+            "sourceSessionId": {
+              "type": "string",
+              "description": "Source session ID context (optional)."
+            }
+          },
+          "required": [
+            "summary",
+            "content",
+            "relatedTo",
+            "tags"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_memory_node",
+        "description": "Retrieves a single memory node by its exact ID string for drill-down.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The exact Memory Node ID."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    }
+  ]
+}
+=====================================================
+
+
+==================== API RESPONSE ====================
+Duration: 851ms
+Time: 2026-06-22T04:41:34.899Z
+Response:
+{
+  "id": "9b54192a-aaac-40e6-940f-1ef905fcc692",
+  "object": "chat.completion",
+  "created": 1782103293,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "The user wants me to look at the hooks folder in the project, summarize what it does and what its internal files do, and write it to an MD file. Let me first find the hooks folder and understand its structure.",
+        "tool_calls": [
+          {
+            "index": 0,
+            "id": "call_00_xwALYpSXLft3JsLQQe3z0712",
+            "type": "function",
+            "function": {
+              "name": "glob",
+              "arguments": "{\"pattern\": \"**/hooks/**\"}"
+            }
+          },
+          {
+            "index": 1,
+            "id": "call_01_L4XaD4Tk3PfyEPWL7Rdi9464",
+            "type": "function",
+            "function": {
+              "name": "grep",
+              "arguments": "{\"pattern\": \"hooks\", \"path\": \"agent/folder-structure.md\"}"
+            }
+          }
+        ]
+      },
+      "logprobs": null,
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 4168,
+    "completion_tokens": 142,
+    "total_tokens": 4310,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 45
+    },
+    "prompt_cache_hit_tokens": 0,
+    "prompt_cache_miss_tokens": 4168
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}
+======================================================
+
+[SYSTEM] [2026-06-22T04:41:34.902Z] API stats: Model: deepseek-v4-flash | Model Latency: 2.42s | Speed: 58.6 t/s | Input: 4168 | Output: 142 | Cache Hit: MISS | Cost: $0.000623 USD
+
+==================== API REQUEST ====================
+URL: https://api.deepseek.com/chat/completions (deepseek-v4-flash)
+Time: 2026-06-22T04:41:35.306Z
+Payload:
+{
+  "model": "deepseek-v4-flash",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are justcode, a terminal-based agentic coding assistant. You help developers plan and implement codebase changes.\n\n## Context discipline\n- Do not read a file's contents unless you're about to edit it or need its internal logic to make a decision.\n- For status or structure questions, check `agent/folder-structure.md` or list directories — don't read file contents to answer them.\n- Fetch only what the task needs. Don't run broad directory scans unless a targeted lookup fails.\n\n## Planning\n- Trivial, single-concern edits: no upfront plan, just make the change.\n- Multi-file or architecturally significant changes: state a brief 2-4 line plan (files + rationale) once, before acting. No flow diagrams, no restating it afterward.\n- Anything substantial enough to need real planning should go through `/plan`, not be re-litigated here.\n\nHost: linux — POSIX — use standard Unix commands (ls, rm, &&)\n\n## Historical Project Decisions (Project Memory)\nThe following is a prose log of past decisions and context for this project. Keep these decisions in mind and ensure your choices do not conflict with them:\n\n[2026-06-22T04:41:03.140Z] - Failed to summarize session automatically: OpenAI Provider HTTP Error 401: {\"error\":{\"message\":\"Authentication Fails, Your api key: ****eac5 is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}\n\n\n## Active skills for this task\nThe skills below were selected by the harness for this task, not by you — no classification step, this is fixed. Follow them as written. If a skill conflicts with the developer's explicit request, follow the skill and say why in one line.\n\n## Skill: coding-efficiency\n# Coding & Efficiency Standards\n\nHard constraints, not style preferences.\n\n## Output style\n1. No filler, greetings, or restated plans. Go directly to the action.\n2. Do not explain what you're about to do before doing it — the diff or command output speaks for itself.\n3. Do not summarize after completing, unless asked. No \"Here's what I did\" recap.\n4. One sentence max when answering a direct question.\n5. If you catch yourself re-evaluating the same decision twice, stop and execute the first viable option.\n6. Before substantive output, state a one-line budget: `[budget: ~N lines / files]`. This is a target, not a ceiling — never cut a needed defensive check or truncate a correct answer just to hit it.\n7. When you resolve a non-obvious bug or environment quirk mid-task (not just at task completion), call `record_memory` for that specific finding immediately — don't wait to fold it into an end-of-task summary, and don't let it go unrecorded because the overall task already gets a memory node.\n8. If a verification step produces an ambiguous or empty result, fix it or explicitly state you're abandoning it and why — don't silently move to a different check without comment.\n9. After stopping a process you started, verify it's actually stopped (re-check the port/process, don't assume a non-zero exit code means success without reading what it actually says).\n10. Terseness applies to filler, not to material caveats. If you privately reason through a real limitation or risk (deployment portability, a known edge case, a tradeoff the developer should know about), state it in one line in your response — don't resolve it silently and move on.\n\n## Before writing new code, adding a dependency, or creating an abstraction\nWalk this ladder, stop at the first rung that holds:\n1. **Existence** — does this need to exist at all?\n2. **Standard library** — does the language/runtime provide it natively?\n3. **Platform** — does the environment provide it?\n4. **Minimal package** — is there a small, already-installed library that does it well?\n5. **Custom code** — only then, write the minimum required.\n\nExceptions — always implemented fully regardless of the ladder above:\n- **Security**: cryptographic verification, sanitization, permission checks\n- **Trust-boundary validation**: input schema checks at API borders\n- **Accessibility**: ARIA labels, semantic markup, keyboard focus states\n- **Data-loss prevention**: backups, transactions, confirmations, rollbacks\n\n## Code quality\n- Defensive by default: null/undefined checks, empty-array validation, type checks, real error handling.\n- Surgical scope: change exactly what the task requires, across as many files as the task genuinely touches in one turn. Don't artificially split one coherent task into multiple turns, and don't touch files outside its scope.\n\n## Skill: nextjs-conventions\n# Next.js-Specific Gotchas\n\n- params/searchParams/cookies()/headers() are async since Next.js 15 — always await before accessing properties.\n- Don't rely on __dirname for runtime file paths — webpack/Turbopack bundling doesn't preserve it reliably. Use process.cwd() or an explicitly passed root path.\n\n## Skill: analyze\nROLE\nYou are analyzing an existing codebase to produce a written profile of it. This\nprofile will be loaded into every future coding session as static context, so\nfuture AI-assisted work matches this codebase's actual conventions instead of\ngeneric defaults. Accuracy matters more than completeness — a wrong claim here\nactively misleads every future session that reads it.\n\nOBJECTIVE\nProduce three files in a new top-level `agent/` folder (not `.agent/` — this one\nis meant to be human-readable and version-controlled):\n\n  agent/project-overview.md   — what this project is and does\n  agent/folder-structure.md   — annotated map of the codebase\n  agent/code-conventions.md   — observed coding standards, with evidence\n\nHARD RULES — read these before starting\n1. Document what IS, not what SHOULD be. You are not writing a style guide of\n   best practices — you are recording the actual, current conventions of this\n   specific codebase, even if they're imperfect or inconsistent.\n2. Never state a convention without pointing to a real example. Every claim in\n   code-conventions.md must cite at least one specific file and, where useful,\n   a line number or function name. \"This codebase uses camelCase for functions\"\n   is not acceptable on its own — \"Functions use camelCase, e.g. getUserById in\n   src/services/user.ts\" is.\n3. If you find inconsistency, report it as inconsistency. Do not silently pick\n   the version you think is cleaner and present it as the standard. State which\n   pattern is dominant (with a rough file count) and which files are outliers.\n   Future sessions need to know the codebase isn't uniform, not be told a lie\n   that it is.\n4. Trust config files over inferred patterns. eslint configs, prettier configs,\n   tsconfig.json, .editorconfig, and similar are ground truth — read them\n   directly rather than guessing the standard from a handful of code samples.\n5. No padded prose. Bullet points and short, concrete statements. A future\n   session reading this should get the facts in seconds, not paragraphs.\n6. Sample broadly, not narrowly. Read files from every major directory, not\n   just the first few you encounter — conventions can differ between, say, the\n   API layer and the frontend, and you need to catch that.\n\nPROCESS\n\nStep 1 — Map the structure\n- Get a full directory tree, excluding node_modules, build output, .git, lock\n  files, and other generated/vendored content.\n- For each top-level and significant second-level directory, open 2-3\n  representative files to determine its actual purpose (don't guess from the\n  folder name alone — \"utils\" can mean very different things).\n\nStep 2 — Identify the stack\n- Read package.json / requirements.txt / go.mod / Cargo.toml / etc.\n- Note the language(s), frameworks, major dependencies, build tooling, and\n  package manager in use.\n- Note the framework's major version specifically (e.g. \"Next.js 15.2\") — this\n  matters more than it sounds like it should, since framework conventions\n  shift between major versions.\n\nStep 3 — Determine what the project actually does\n- Read the README if one exists.\n- Read the package/project description field if present.\n- Look at entry points: main files, route definitions, CLI command\n  registrations, exported public API surface.\n- Summarize: what does this software do, who is it for, what are its main\n  user-facing or system-facing capabilities.\n\nStep 4 — Sample real code across the codebase\n- Read at least 2-3 files from each major directory identified in Step 1.\n- Look specifically for: naming conventions (files, functions, variables,\n  types), function length/decomposition style, error-handling approach\n  (exceptions vs return codes vs Result types, etc.), comment density and\n  style, import/module organization, testing approach and coverage level,\n  any consistent architectural pattern (e.g. repository pattern, MVC, hooks-\n  based, etc.).\n\nStep 5 — Extract conventions, with evidence\n- For each convention you identify, note: the pattern itself, a specific\n  example (file + line/function), and whether it's consistent throughout or\n  has exceptions.\n- Cross-check against any linter/formatter config found in Step 2 — if a\n  config exists, quote its actual rules rather than re-deriving them from\n  code samples.\n\nStep 6 — Write the three output files\n\n  agent/project-overview.md\n    - One paragraph: what this project is and who it's for\n    - Tech stack (language, framework + version, key dependencies)\n    - Main capabilities / feature areas (bullet list)\n    - Entry points (where execution starts, where routes/commands are defined)\n\n  agent/folder-structure.md\n    - Annotated directory tree (major folders only, not every file)\n    - One line per folder: its actual purpose, based on what you read in it,\n      not what its name implies\n    - Note any folder whose contents don't match what its name suggests\n\n  agent/code-conventions.md\n    - Naming conventions (files, functions, variables, types) — with examples\n    - Error-handling pattern — with examples\n    - Testing approach (framework, location, what's covered) — with examples\n    - Formatting/linting rules — quoted directly from config files if present\n    - Any consistent architectural pattern in use — with examples\n    - A clearly labeled \"Inconsistencies\" section listing anywhere the\n      codebase doesn't follow one rule uniformly, with the dominant pattern\n      and the outliers named by file\n\nDO NOT\n- Invent conventions the codebase doesn't actually demonstrate\n- Smooth over inconsistencies into a single idealized rule\n- Pad output with generic software-engineering advice not grounded in what you\n  actually read\n- Skip directories because they look unimportant — an undocumented convention\n  in a \"minor\" folder is still a convention a future session needs to match\n\nWHEN DONE\nReport which files you read to produce each claim, so a human can spot-check\nthis analysis before it becomes load-bearing context for every future session."
+    },
+    {
+      "role": "user",
+      "content": "in this project the hooks folder summarize the folder what it does and what its internal files does and write it i a md file."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_00_xwALYpSXLft3JsLQQe3z0712",
+          "type": "function",
+          "function": {
+            "name": "glob",
+            "arguments": "{\"pattern\":\"**/hooks/**\"}"
+          }
+        },
+        {
+          "id": "call_01_L4XaD4Tk3PfyEPWL7Rdi9464",
+          "type": "function",
+          "function": {
+            "name": "grep",
+            "arguments": "{\"pattern\":\"hooks\",\"path\":\"agent/folder-structure.md\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_xwALYpSXLft3JsLQQe3z0712",
+      "content": "node_modules/react-redux/src/hooks\nnode_modules/react-redux/src/hooks/useDispatch.ts\nnode_modules/react-redux/src/hooks/useReduxContext.ts\nnode_modules/react-redux/src/hooks/useSelector.ts\nnode_modules/react-redux/src/hooks/useStore.ts\nhooks\nhooks/useAuth.hooks.ts\nhooks/useDashboardMetrics.hook.ts\nhooks/useObjectState.hook.ts"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_01_L4XaD4Tk3PfyEPWL7Rdi9464",
+      "content": "No matches found for pattern \"hooks\"."
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "read_file",
+        "description": "Reads the entire contents of a file at the specified path.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to read, relative or absolute."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "write_file",
+        "description": "Writes complete contents to a file at the specified path. Creates parent directories if they do not exist.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to write, relative or absolute."
+            },
+            "content": {
+              "type": "string",
+              "description": "The content to write to the file."
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "edit_file",
+        "description": "Edits an existing file by replacing specific blocks of text. Edits are applied in the order specified.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to edit."
+            },
+            "edits": {
+              "type": "array",
+              "description": "A list of edit search/replace chunks to execute.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "oldText": {
+                    "type": "string",
+                    "description": "The exact lines of text to be replaced (must match exactly in the file including whitespace)."
+                  },
+                  "newText": {
+                    "type": "string",
+                    "description": "The new replacement text."
+                  }
+                },
+                "required": [
+                  "oldText",
+                  "newText"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path",
+            "edits"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "bash",
+        "description": "Executes a shell command and returns its output. For commands expected to take more than a few seconds (npm install, build, compile, test, dev server), use start_process instead — it returns a jobId you can poll without re-issuing the command.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to run."
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "start_process",
+        "description": "Starts a command as a tracked background process and returns a jobId immediately. Use this for npm install, npm run build, npx next build, test runs, dev servers — any command expected to take more than a few seconds. After starting, call check_process or wait_process with the returned jobId to poll its status. NEVER re-issue start_process for the same logical operation to check if it finished — use wait_process.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to start in the background."
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "check_process",
+        "description": "Returns the current status of a background process started with start_process. Returns running state, exit code (if finished), and any new output since the last check.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "description": "The jobId returned by start_process."
+            }
+          },
+          "required": [
+            "jobId"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "wait_process",
+        "description": "Polls a background process until it completes or the timeout is reached. Use this instead of re-issuing the original command when waiting for npm install, builds, or tests. Returns the exit code, completion status, and full output on completion.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "description": "The jobId returned by start_process."
+            },
+            "timeoutMs": {
+              "type": "number",
+              "description": "Maximum milliseconds to wait before returning (default: 15000). Use 60000+ for npm install or builds."
+            }
+          },
+          "required": [
+            "jobId"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "grep",
+        "description": "Searches for text patterns inside files in a directory recursively (ignores node_modules and .git by default).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "The text string or regex pattern to search for."
+            },
+            "path": {
+              "type": "string",
+              "description": "The directory path to search in (defaults to current project root)."
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "glob",
+        "description": "Finds files matching a glob pattern (e.g. \"src/**/*.ts\").",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "The glob pattern to match (e.g. \"**/*.json\")."
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_memory",
+        "description": "Searches the memory index cache by keyword to identify matching node summaries and tags.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query topic keywords."
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "The maximum matches to return (default 8)."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "recall_memory",
+        "description": "Retrieves relevant memory node content clusters by executing a keyword search and BFS graph expansion.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The query topic keywords to seed the search."
+            },
+            "maxSeedNodes": {
+              "type": "number",
+              "description": "Maximum seed nodes to expand from (default 3)."
+            },
+            "maxHops": {
+              "type": "number",
+              "description": "Maximum hops to walk (default 2)."
+            },
+            "tokenBudget": {
+              "type": "number",
+              "description": "Max token budget for returned content (default 4000)."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "record_memory",
+        "description": "Records a new structured memory node and links it to existing related nodes.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string",
+              "description": "One-line summary description of the fact or decision."
+            },
+            "content": {
+              "type": "string",
+              "description": "Detailed content body of the memory."
+            },
+            "relatedTo": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Array of related memory node ID strings."
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Free-form topic tags."
+            },
+            "sourceSessionId": {
+              "type": "string",
+              "description": "Source session ID context (optional)."
+            }
+          },
+          "required": [
+            "summary",
+            "content",
+            "relatedTo",
+            "tags"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_memory_node",
+        "description": "Retrieves a single memory node by its exact ID string for drill-down.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The exact Memory Node ID."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    }
+  ]
+}
+=====================================================
+
+
+==================== API RESPONSE ====================
+Duration: 491ms
+Time: 2026-06-22T04:41:37.406Z
+Response:
+{
+  "id": "1dd5c624-5873-44ea-95e8-d774988c801e",
+  "object": "chat.completion",
+  "created": 1782103295,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "Good. The project has a `hooks/` directory with three files. Let me read all three to understand what they do.",
+        "tool_calls": [
+          {
+            "index": 0,
+            "id": "call_00_9tAG6fx1hUb8dHS9Agos4325",
+            "type": "function",
+            "function": {
+              "name": "read_file",
+              "arguments": "{\"path\": \"hooks/useAuth.hooks.ts\"}"
+            }
+          },
+          {
+            "index": 1,
+            "id": "call_01_CSnt509ySuddWC1SXWb64461",
+            "type": "function",
+            "function": {
+              "name": "read_file",
+              "arguments": "{\"path\": \"hooks/useDashboardMetrics.hook.ts\"}"
+            }
+          },
+          {
+            "index": 2,
+            "id": "call_02_wHTK47rIyA3VnwvA2akz9911",
+            "type": "function",
+            "function": {
+              "name": "read_file",
+              "arguments": "{\"path\": \"hooks/useObjectState.hook.ts\"}"
+            }
+          }
+        ]
+      },
+      "logprobs": null,
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 4423,
+    "completion_tokens": 150,
+    "total_tokens": 4573,
+    "prompt_tokens_details": {
+      "cached_tokens": 4224
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 26
+    },
+    "prompt_cache_hit_tokens": 4224,
+    "prompt_cache_miss_tokens": 199
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}
+======================================================
+
+[SYSTEM] [2026-06-22T04:41:37.410Z] API stats: Model: deepseek-v4-flash | Model Latency: 2.10s | Speed: 71.4 t/s | Input: 4423 | Output: 150 | Cache Hit: HIT | Cost: $0.000285 USD
+
+==================== API REQUEST ====================
+URL: https://api.deepseek.com/chat/completions (deepseek-v4-flash)
+Time: 2026-06-22T04:41:37.429Z
+Payload:
+{
+  "model": "deepseek-v4-flash",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are justcode, a terminal-based agentic coding assistant. You help developers plan and implement codebase changes.\n\n## Context discipline\n- Do not read a file's contents unless you're about to edit it or need its internal logic to make a decision.\n- For status or structure questions, check `agent/folder-structure.md` or list directories — don't read file contents to answer them.\n- Fetch only what the task needs. Don't run broad directory scans unless a targeted lookup fails.\n\n## Planning\n- Trivial, single-concern edits: no upfront plan, just make the change.\n- Multi-file or architecturally significant changes: state a brief 2-4 line plan (files + rationale) once, before acting. No flow diagrams, no restating it afterward.\n- Anything substantial enough to need real planning should go through `/plan`, not be re-litigated here.\n\nHost: linux — POSIX — use standard Unix commands (ls, rm, &&)\n\n## Historical Project Decisions (Project Memory)\nThe following is a prose log of past decisions and context for this project. Keep these decisions in mind and ensure your choices do not conflict with them:\n\n[2026-06-22T04:41:03.140Z] - Failed to summarize session automatically: OpenAI Provider HTTP Error 401: {\"error\":{\"message\":\"Authentication Fails, Your api key: ****eac5 is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}\n\n\n## Active skills for this task\nThe skills below were selected by the harness for this task, not by you — no classification step, this is fixed. Follow them as written. If a skill conflicts with the developer's explicit request, follow the skill and say why in one line.\n\n## Skill: coding-efficiency\n# Coding & Efficiency Standards\n\nHard constraints, not style preferences.\n\n## Output style\n1. No filler, greetings, or restated plans. Go directly to the action.\n2. Do not explain what you're about to do before doing it — the diff or command output speaks for itself.\n3. Do not summarize after completing, unless asked. No \"Here's what I did\" recap.\n4. One sentence max when answering a direct question.\n5. If you catch yourself re-evaluating the same decision twice, stop and execute the first viable option.\n6. Before substantive output, state a one-line budget: `[budget: ~N lines / files]`. This is a target, not a ceiling — never cut a needed defensive check or truncate a correct answer just to hit it.\n7. When you resolve a non-obvious bug or environment quirk mid-task (not just at task completion), call `record_memory` for that specific finding immediately — don't wait to fold it into an end-of-task summary, and don't let it go unrecorded because the overall task already gets a memory node.\n8. If a verification step produces an ambiguous or empty result, fix it or explicitly state you're abandoning it and why — don't silently move to a different check without comment.\n9. After stopping a process you started, verify it's actually stopped (re-check the port/process, don't assume a non-zero exit code means success without reading what it actually says).\n10. Terseness applies to filler, not to material caveats. If you privately reason through a real limitation or risk (deployment portability, a known edge case, a tradeoff the developer should know about), state it in one line in your response — don't resolve it silently and move on.\n\n## Before writing new code, adding a dependency, or creating an abstraction\nWalk this ladder, stop at the first rung that holds:\n1. **Existence** — does this need to exist at all?\n2. **Standard library** — does the language/runtime provide it natively?\n3. **Platform** — does the environment provide it?\n4. **Minimal package** — is there a small, already-installed library that does it well?\n5. **Custom code** — only then, write the minimum required.\n\nExceptions — always implemented fully regardless of the ladder above:\n- **Security**: cryptographic verification, sanitization, permission checks\n- **Trust-boundary validation**: input schema checks at API borders\n- **Accessibility**: ARIA labels, semantic markup, keyboard focus states\n- **Data-loss prevention**: backups, transactions, confirmations, rollbacks\n\n## Code quality\n- Defensive by default: null/undefined checks, empty-array validation, type checks, real error handling.\n- Surgical scope: change exactly what the task requires, across as many files as the task genuinely touches in one turn. Don't artificially split one coherent task into multiple turns, and don't touch files outside its scope.\n\n## Skill: nextjs-conventions\n# Next.js-Specific Gotchas\n\n- params/searchParams/cookies()/headers() are async since Next.js 15 — always await before accessing properties.\n- Don't rely on __dirname for runtime file paths — webpack/Turbopack bundling doesn't preserve it reliably. Use process.cwd() or an explicitly passed root path.\n\n## Skill: analyze\nROLE\nYou are analyzing an existing codebase to produce a written profile of it. This\nprofile will be loaded into every future coding session as static context, so\nfuture AI-assisted work matches this codebase's actual conventions instead of\ngeneric defaults. Accuracy matters more than completeness — a wrong claim here\nactively misleads every future session that reads it.\n\nOBJECTIVE\nProduce three files in a new top-level `agent/` folder (not `.agent/` — this one\nis meant to be human-readable and version-controlled):\n\n  agent/project-overview.md   — what this project is and does\n  agent/folder-structure.md   — annotated map of the codebase\n  agent/code-conventions.md   — observed coding standards, with evidence\n\nHARD RULES — read these before starting\n1. Document what IS, not what SHOULD be. You are not writing a style guide of\n   best practices — you are recording the actual, current conventions of this\n   specific codebase, even if they're imperfect or inconsistent.\n2. Never state a convention without pointing to a real example. Every claim in\n   code-conventions.md must cite at least one specific file and, where useful,\n   a line number or function name. \"This codebase uses camelCase for functions\"\n   is not acceptable on its own — \"Functions use camelCase, e.g. getUserById in\n   src/services/user.ts\" is.\n3. If you find inconsistency, report it as inconsistency. Do not silently pick\n   the version you think is cleaner and present it as the standard. State which\n   pattern is dominant (with a rough file count) and which files are outliers.\n   Future sessions need to know the codebase isn't uniform, not be told a lie\n   that it is.\n4. Trust config files over inferred patterns. eslint configs, prettier configs,\n   tsconfig.json, .editorconfig, and similar are ground truth — read them\n   directly rather than guessing the standard from a handful of code samples.\n5. No padded prose. Bullet points and short, concrete statements. A future\n   session reading this should get the facts in seconds, not paragraphs.\n6. Sample broadly, not narrowly. Read files from every major directory, not\n   just the first few you encounter — conventions can differ between, say, the\n   API layer and the frontend, and you need to catch that.\n\nPROCESS\n\nStep 1 — Map the structure\n- Get a full directory tree, excluding node_modules, build output, .git, lock\n  files, and other generated/vendored content.\n- For each top-level and significant second-level directory, open 2-3\n  representative files to determine its actual purpose (don't guess from the\n  folder name alone — \"utils\" can mean very different things).\n\nStep 2 — Identify the stack\n- Read package.json / requirements.txt / go.mod / Cargo.toml / etc.\n- Note the language(s), frameworks, major dependencies, build tooling, and\n  package manager in use.\n- Note the framework's major version specifically (e.g. \"Next.js 15.2\") — this\n  matters more than it sounds like it should, since framework conventions\n  shift between major versions.\n\nStep 3 — Determine what the project actually does\n- Read the README if one exists.\n- Read the package/project description field if present.\n- Look at entry points: main files, route definitions, CLI command\n  registrations, exported public API surface.\n- Summarize: what does this software do, who is it for, what are its main\n  user-facing or system-facing capabilities.\n\nStep 4 — Sample real code across the codebase\n- Read at least 2-3 files from each major directory identified in Step 1.\n- Look specifically for: naming conventions (files, functions, variables,\n  types), function length/decomposition style, error-handling approach\n  (exceptions vs return codes vs Result types, etc.), comment density and\n  style, import/module organization, testing approach and coverage level,\n  any consistent architectural pattern (e.g. repository pattern, MVC, hooks-\n  based, etc.).\n\nStep 5 — Extract conventions, with evidence\n- For each convention you identify, note: the pattern itself, a specific\n  example (file + line/function), and whether it's consistent throughout or\n  has exceptions.\n- Cross-check against any linter/formatter config found in Step 2 — if a\n  config exists, quote its actual rules rather than re-deriving them from\n  code samples.\n\nStep 6 — Write the three output files\n\n  agent/project-overview.md\n    - One paragraph: what this project is and who it's for\n    - Tech stack (language, framework + version, key dependencies)\n    - Main capabilities / feature areas (bullet list)\n    - Entry points (where execution starts, where routes/commands are defined)\n\n  agent/folder-structure.md\n    - Annotated directory tree (major folders only, not every file)\n    - One line per folder: its actual purpose, based on what you read in it,\n      not what its name implies\n    - Note any folder whose contents don't match what its name suggests\n\n  agent/code-conventions.md\n    - Naming conventions (files, functions, variables, types) — with examples\n    - Error-handling pattern — with examples\n    - Testing approach (framework, location, what's covered) — with examples\n    - Formatting/linting rules — quoted directly from config files if present\n    - Any consistent architectural pattern in use — with examples\n    - A clearly labeled \"Inconsistencies\" section listing anywhere the\n      codebase doesn't follow one rule uniformly, with the dominant pattern\n      and the outliers named by file\n\nDO NOT\n- Invent conventions the codebase doesn't actually demonstrate\n- Smooth over inconsistencies into a single idealized rule\n- Pad output with generic software-engineering advice not grounded in what you\n  actually read\n- Skip directories because they look unimportant — an undocumented convention\n  in a \"minor\" folder is still a convention a future session needs to match\n\nWHEN DONE\nReport which files you read to produce each claim, so a human can spot-check\nthis analysis before it becomes load-bearing context for every future session."
+    },
+    {
+      "role": "user",
+      "content": "in this project the hooks folder summarize the folder what it does and what its internal files does and write it i a md file."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_00_xwALYpSXLft3JsLQQe3z0712",
+          "type": "function",
+          "function": {
+            "name": "glob",
+            "arguments": "{\"pattern\":\"**/hooks/**\"}"
+          }
+        },
+        {
+          "id": "call_01_L4XaD4Tk3PfyEPWL7Rdi9464",
+          "type": "function",
+          "function": {
+            "name": "grep",
+            "arguments": "{\"pattern\":\"hooks\",\"path\":\"agent/folder-structure.md\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_xwALYpSXLft3JsLQQe3z0712",
+      "content": "node_modules/react-redux/src/hooks\nnode_modules/react-redux/src/hooks/useDispatch.ts\nnode_modules/react-redux/src/hooks/useReduxContext.ts\nnode_modules/react-redux/src/hooks/useSelector.ts\nnode_modules/react-redux/src/hooks/useStore.ts\nhooks\nhooks/useAuth.hooks.ts\nhooks/useDashboardMetrics.hook.ts\nhooks/useObjectState.hook.ts"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_01_L4XaD4Tk3PfyEPWL7Rdi9464",
+      "content": "No matches found for pattern \"hooks\"."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_00_9tAG6fx1hUb8dHS9Agos4325",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\":\"hooks/useAuth.hooks.ts\"}"
+          }
+        },
+        {
+          "id": "call_01_CSnt509ySuddWC1SXWb64461",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\":\"hooks/useDashboardMetrics.hook.ts\"}"
+          }
+        },
+        {
+          "id": "call_02_wHTK47rIyA3VnwvA2akz9911",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\":\"hooks/useObjectState.hook.ts\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_9tAG6fx1hUb8dHS9Agos4325",
+      "content": "export { useAuth, AuthProvider } from \"@/contexts/AuthContext\";\n"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_01_CSnt509ySuddWC1SXWb64461",
+      "content": "import { api } from \"@/utils/api\";\nimport { useEffect, useState, useCallback } from \"react\";\nimport { DEFAULT_METRICS } from \"@/app/dashboard/dashboard.constents\";\n\ninterface AgenciesMetricResponse {\n    data: {\n        value: string;\n        change: string;\n        isPositive: boolean;\n        sparklineData: number[];\n    };\n}\n\ninterface GenericMetricResponse {\n    data: {\n        currentValue: number;\n        percentageChange: number;\n        sparklineData: number[];\n    };\n}\n\nexport interface MetricItem {\n    title: string;\n    value: string;\n    change: string;\n    isPositive: boolean;\n    sparklineData: number[];\n    isLoading: boolean;\n}\n\nexport interface DashboardFilters {\n    dateRange: \"all\" | \"7d\" | \"30d\" | \"90d\";\n    subType: \"all\" | string;\n    agencyStatus: \"all\" | \"active\" | \"pending\";\n}\n\nexport default function useDashboardMetrics(\n    filters: DashboardFilters = {\n        dateRange: \"all\",\n        subType: \"all\",\n        agencyStatus: \"all\",\n    }\n) {\n    // 1. Initialize state with DEFAULT_METRICS to avoid undefined glitches\n    const [dashboardMetrics, setDashboardMetrics] = useState<MetricItem[]>(DEFAULT_METRICS);\n    // 2. Safely populate elements inside the state updater\n    const updateMetric = useCallback((index: number, updatedFields: Partial<MetricItem>) => {\n        setDashboardMetrics((prev) =>\n            (prev || []).map((metric, i) =>\n                i === index\n                    ? {\n                          ...metric,\n                          ...updatedFields,\n                      }\n                    : metric\n            )\n        );\n    }, []);\n\n    const fetchAgencies = async (params: Record<string, string>) => {\n        try {\n            updateMetric(0, { isLoading: true });\n            const res = await api<AgenciesMetricResponse>(\"/dashboard/agencies\", {\n                method: \"GET\",\n                params,\n            });\n            if (res.data) {\n                updateMetric(0, {\n                    title: \"Registered Agencies\",\n                    value: res.data.value,\n                    change: res.data.change,\n                    isPositive: res.data.isPositive,\n                    sparklineData: res.data.sparklineData,\n                    isLoading: false,\n                });\n            }\n        } catch (error) {\n            console.error(\"Failed to fetch agencies:\", error);\n            updateMetric(1, {\n                value: \"N/A\",\n                change: \"0%\",\n                isPositive: false,\n                sparklineData: [],\n                isLoading: false,\n            });\n        }\n    };\n\n    const fetchRevenue = async (params: Record<string, string>) => {\n        try {\n            updateMetric(1, { isLoading: true });\n            const res = await api<GenericMetricResponse>(\"/dashboard/revenue\", {\n                method: \"GET\",\n                params,\n            });\n            const val = res.data?.currentValue ?? 0;\n            const pct = res.data?.percentageChange ?? 0;\n            updateMetric(1, {\n                title: \"Revenue\",\n                value: `$${Number(val).toLocaleString()}`,\n                change: `${pct >= 0 ? \"+\" : \"\"}${pct}%`,\n                isPositive: pct >= 0,\n                sparklineData: res.data.sparklineData,\n                isLoading: false,\n            });\n        } catch (error) {\n            console.error(\"Failed to fetch revenue:\", error);\n            updateMetric(1, { value: \"N/A\", change: \"0%\", isPositive: false, isLoading: false });\n        }\n    };\n\n    const fetchActiveSessions = async (params: Record<string, string>) => {\n        try {\n            updateMetric(2, { isLoading: true });\n            const res = await api<GenericMetricResponse>(\"/dashboard/active-sessions\", {\n                method: \"GET\",\n                params,\n            });\n            const val = res.data?.currentValue ?? 0;\n            const pct = res.data?.percentageChange ?? 0;\n            updateMetric(2, {\n                title: \"Active User Sessions\",\n                value: Number(val).toLocaleString(),\n                change: `${pct >= 0 ? \"+\" : \"\"}${pct}%`,\n                isPositive: pct >= 0,\n                sparklineData: res.data.sparklineData,\n                isLoading: false,\n            });\n        } catch (error) {\n            console.error(\"Failed to fetch active sessions:\", error);\n            updateMetric(2, { value: \"N/A\", change: \"0%\", isPositive: false, isLoading: false });\n        }\n    };\n\n    const fetchAiMetrics = async (params: Record<string, string>) => {\n        try {\n            updateMetric(3, { isLoading: true });\n            const res = await api<GenericMetricResponse>(\"/dashboard/ai-tokens\", {\n                method: \"GET\",\n                params,\n            });\n            const val = res.data?.currentValue ?? 0;\n            const pct = res.data?.percentageChange ?? 0;\n            updateMetric(3, {\n                title: \"Avg. AI Model Tokens/Sec\",\n                value: Number(val).toLocaleString(),\n                change: `${pct >= 0 ? \"+\" : \"\"}${pct}%`,\n                isPositive: pct >= 0,\n                sparklineData: res.data.sparklineData,\n                isLoading: false,\n            });\n        } catch (error) {\n            console.error(\"Failed to fetch AI metrics:\", error);\n            updateMetric(3, { value: \"N/A\", change: \"0%\", isPositive: false, isLoading: false });\n        }\n    };\n\n    const fetchAllMetrics = useCallback(() => {\n        // Build the search params from the filters argument\n        const queryParams: Record<string, string> = {};\n        if (filters.dateRange) queryParams.dateRange = filters.dateRange;\n        if (filters.subType) queryParams.subType = filters.subType;\n        if (filters.agencyStatus) queryParams.agencyagencyStatus = filters.agencyStatus;\n\n        // Fire all API requests in parallel. They will resolve and update the UI independently.\n        fetchAgencies(queryParams);\n        fetchRevenue(queryParams);\n        fetchActiveSessions(queryParams);\n        fetchAiMetrics(queryParams);\n    }, [filters.dateRange, filters.subType, filters.agencyStatus, updateMetric]);\n\n    useEffect(() => {\n        fetchAllMetrics();\n    }, [fetchAllMetrics]);\n\n    // Derived global loading state: true if at least one card is still loading\n    const loading = dashboardMetrics.some((metric) => metric.isLoading);\n\n    return {\n        loading,\n        dashboardMetrics,\n        refetch: fetchAllMetrics,\n    };\n}\n"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_02_wHTK47rIyA3VnwvA2akz9911",
+      "content": "\"use client\";\n\nimport { useEffect, useState } from \"react\";\n\nexport default function useObjectState<T extends object>(\n    initialState: T,\n    dependencies: React.DependencyList = []\n) {\n    const [state, setState] = useState(initialState);\n\n    useEffect(() => {\n        setState(initialState);\n    }, dependencies);\n\n    const updateState = (update: Partial<T> | ((prev: T) => Partial<T>)) => {\n        setState((prev) => ({\n            ...prev,\n            ...(typeof update === \"function\" ? update(prev) : update),\n        }));\n    };\n\n    return [state, updateState] as const;\n}\n"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "read_file",
+        "description": "Reads the entire contents of a file at the specified path.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to read, relative or absolute."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "write_file",
+        "description": "Writes complete contents to a file at the specified path. Creates parent directories if they do not exist.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to write, relative or absolute."
+            },
+            "content": {
+              "type": "string",
+              "description": "The content to write to the file."
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "edit_file",
+        "description": "Edits an existing file by replacing specific blocks of text. Edits are applied in the order specified.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to edit."
+            },
+            "edits": {
+              "type": "array",
+              "description": "A list of edit search/replace chunks to execute.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "oldText": {
+                    "type": "string",
+                    "description": "The exact lines of text to be replaced (must match exactly in the file including whitespace)."
+                  },
+                  "newText": {
+                    "type": "string",
+                    "description": "The new replacement text."
+                  }
+                },
+                "required": [
+                  "oldText",
+                  "newText"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path",
+            "edits"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "bash",
+        "description": "Executes a shell command and returns its output. For commands expected to take more than a few seconds (npm install, build, compile, test, dev server), use start_process instead — it returns a jobId you can poll without re-issuing the command.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to run."
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "start_process",
+        "description": "Starts a command as a tracked background process and returns a jobId immediately. Use this for npm install, npm run build, npx next build, test runs, dev servers — any command expected to take more than a few seconds. After starting, call check_process or wait_process with the returned jobId to poll its status. NEVER re-issue start_process for the same logical operation to check if it finished — use wait_process.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to start in the background."
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "check_process",
+        "description": "Returns the current status of a background process started with start_process. Returns running state, exit code (if finished), and any new output since the last check.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "description": "The jobId returned by start_process."
+            }
+          },
+          "required": [
+            "jobId"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "wait_process",
+        "description": "Polls a background process until it completes or the timeout is reached. Use this instead of re-issuing the original command when waiting for npm install, builds, or tests. Returns the exit code, completion status, and full output on completion.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "description": "The jobId returned by start_process."
+            },
+            "timeoutMs": {
+              "type": "number",
+              "description": "Maximum milliseconds to wait before returning (default: 15000). Use 60000+ for npm install or builds."
+            }
+          },
+          "required": [
+            "jobId"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "grep",
+        "description": "Searches for text patterns inside files in a directory recursively (ignores node_modules and .git by default).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "The text string or regex pattern to search for."
+            },
+            "path": {
+              "type": "string",
+              "description": "The directory path to search in (defaults to current project root)."
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "glob",
+        "description": "Finds files matching a glob pattern (e.g. \"src/**/*.ts\").",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "The glob pattern to match (e.g. \"**/*.json\")."
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_memory",
+        "description": "Searches the memory index cache by keyword to identify matching node summaries and tags.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query topic keywords."
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "The maximum matches to return (default 8)."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "recall_memory",
+        "description": "Retrieves relevant memory node content clusters by executing a keyword search and BFS graph expansion.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The query topic keywords to seed the search."
+            },
+            "maxSeedNodes": {
+              "type": "number",
+              "description": "Maximum seed nodes to expand from (default 3)."
+            },
+            "maxHops": {
+              "type": "number",
+              "description": "Maximum hops to walk (default 2)."
+            },
+            "tokenBudget": {
+              "type": "number",
+              "description": "Max token budget for returned content (default 4000)."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "record_memory",
+        "description": "Records a new structured memory node and links it to existing related nodes.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string",
+              "description": "One-line summary description of the fact or decision."
+            },
+            "content": {
+              "type": "string",
+              "description": "Detailed content body of the memory."
+            },
+            "relatedTo": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Array of related memory node ID strings."
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Free-form topic tags."
+            },
+            "sourceSessionId": {
+              "type": "string",
+              "description": "Source session ID context (optional)."
+            }
+          },
+          "required": [
+            "summary",
+            "content",
+            "relatedTo",
+            "tags"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_memory_node",
+        "description": "Retrieves a single memory node by its exact ID string for drill-down.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The exact Memory Node ID."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    }
+  ]
+}
+=====================================================
+
+
+==================== API RESPONSE ====================
+Duration: 522ms
+Time: 2026-06-22T04:41:45.363Z
+Response:
+{
+  "id": "54f797ec-55f7-431b-af61-55cf94ac5d0f",
+  "object": "chat.completion",
+  "created": 1782103297,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "Now I have a clear picture. Let me write a summary file.\n\nThe hooks folder has:\n1. `useAuth.hooks.ts` - just re-exports `useAuth` and `AuthProvider` from `@/contexts/AuthContext`\n2. `useDashboardMetrics.hook.ts` - fetches dashboard metrics (agencies, revenue, active sessions, AI tokens) with filtering\n3. `useObjectState.hook.ts` - a generic utility hook for managing object state with partial updates\n\nLet me note the naming inconsistency: one file uses `.hooks.ts` (plural), one uses `.hook.ts` (singular), and another uses `.hook.ts` (singular). That's worth noting.\n\nLet me write the summary.",
+        "tool_calls": [
+          {
+            "index": 0,
+            "id": "call_00_NMYyAmr8F5TAxQeEixZU7645",
+            "type": "function",
+            "function": {
+              "name": "write_file",
+              "arguments": "{\"path\": \"agent/hooks-summary.md\", \"content\": \"# `hooks/` — Summary\\n\\nThe `hooks/` directory contains three custom React hooks that encapsulate reusable stateful logic for the application. They serve as a thin abstraction layer between the UI components and data/context sources.\\n\\n## Files\\n\\n### `useAuth.hooks.ts`\\nA re-export barrel file. It simply re-exports `useAuth` and `AuthProvider` from `@/contexts/AuthContext`. The real implementation lives in the contexts layer — this file exists to provide a consistent import path (`@/hooks/useAuth`) for consumers.\\n\\n### `useDashboardMetrics.hook.ts`\\nThe most substantial hook in the folder. It manages fetching and state for all four dashboard metric cards (Registered Agencies, Revenue, Active User Sessions, Avg. AI Model Tokens/Sec) in a single hook.\\n\\n**Key details:**\\n- Accepts a `DashboardFilters` object (`dateRange`, `subType`, `agencyStatus`) and fires four parallel API calls when filters change.\\n- Each API response updates its corresponding `MetricItem` index via a `useCallback`-wrapped `updateMetric` helper.\\n- Returns `loading` (derived — true if any metric is still loading), `dashboardMetrics` (the array of `MetricItem`), and a `refetch` function.\\n- Uses `DEFAULT_METRICS` from `@/app/dashboard/dashboard.constents` to initialize state without undefined glitches.\\n- Error handling: on fetch failure, the affected metric is set to `\\\"N/A\\\"` / `\\\"0%\\\"` and `isLoading` is set to `false`.\\n\\n### `useObjectState.hook.ts`\\nA generic utility hook that simplifies state management for object-shaped state.\\n\\n**Key details:**\\n- Generic over `T extends object`.\\n- Accepts an `initialState` and an optional `dependencies` array. When dependencies change, state resets to `initialState` (via `useEffect`).\\n- Provides an `updateState` function that accepts either a partial object or a functional updater `(prev: T) => Partial<T>`, merging it into the existing state via spread.\\n- Returns a tuple `[state, updateState]` for a minimal, `useState`-like API.\\n\\n## Naming inconsistency\\n\\nThe three files use two different naming conventions:\\n- `useAuth.hooks.ts` — plural `.hooks.ts`\\n- `useDashboardMetrics.hook.ts` — singular `.hook.ts`\\n- `useObjectState.hook.ts` — singular `.hook.ts`\\n\\nThe singular `.hook.ts` is the majority pattern (2 of 3 files). The plural `.hooks.ts` in `useAuth.hooks.ts` is an outlier.\\n\"}"
+            }
+          }
+        ]
+      },
+      "logprobs": null,
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 6188,
+    "completion_tokens": 781,
+    "total_tokens": 6969,
+    "prompt_tokens_details": {
+      "cached_tokens": 4480
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 152
+    },
+    "prompt_cache_hit_tokens": 4480,
+    "prompt_cache_miss_tokens": 1708
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}
+======================================================
+
+[SYSTEM] [2026-06-22T04:41:45.367Z] API stats: Model: deepseek-v4-flash | Model Latency: 7.94s | Speed: 98.4 t/s | Input: 6188 | Output: 781 | Cache Hit: HIT | Cost: $0.000559 USD
+
+==================== API REQUEST ====================
+URL: https://api.deepseek.com/chat/completions (deepseek-v4-flash)
+Time: 2026-06-22T04:41:45.377Z
+Payload:
+{
+  "model": "deepseek-v4-flash",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are justcode, a terminal-based agentic coding assistant. You help developers plan and implement codebase changes.\n\n## Context discipline\n- Do not read a file's contents unless you're about to edit it or need its internal logic to make a decision.\n- For status or structure questions, check `agent/folder-structure.md` or list directories — don't read file contents to answer them.\n- Fetch only what the task needs. Don't run broad directory scans unless a targeted lookup fails.\n\n## Planning\n- Trivial, single-concern edits: no upfront plan, just make the change.\n- Multi-file or architecturally significant changes: state a brief 2-4 line plan (files + rationale) once, before acting. No flow diagrams, no restating it afterward.\n- Anything substantial enough to need real planning should go through `/plan`, not be re-litigated here.\n\nHost: linux — POSIX — use standard Unix commands (ls, rm, &&)\n\n## Historical Project Decisions (Project Memory)\nThe following is a prose log of past decisions and context for this project. Keep these decisions in mind and ensure your choices do not conflict with them:\n\n[2026-06-22T04:41:03.140Z] - Failed to summarize session automatically: OpenAI Provider HTTP Error 401: {\"error\":{\"message\":\"Authentication Fails, Your api key: ****eac5 is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}\n\n\n## Active skills for this task\nThe skills below were selected by the harness for this task, not by you — no classification step, this is fixed. Follow them as written. If a skill conflicts with the developer's explicit request, follow the skill and say why in one line.\n\n## Skill: coding-efficiency\n# Coding & Efficiency Standards\n\nHard constraints, not style preferences.\n\n## Output style\n1. No filler, greetings, or restated plans. Go directly to the action.\n2. Do not explain what you're about to do before doing it — the diff or command output speaks for itself.\n3. Do not summarize after completing, unless asked. No \"Here's what I did\" recap.\n4. One sentence max when answering a direct question.\n5. If you catch yourself re-evaluating the same decision twice, stop and execute the first viable option.\n6. Before substantive output, state a one-line budget: `[budget: ~N lines / files]`. This is a target, not a ceiling — never cut a needed defensive check or truncate a correct answer just to hit it.\n7. When you resolve a non-obvious bug or environment quirk mid-task (not just at task completion), call `record_memory` for that specific finding immediately — don't wait to fold it into an end-of-task summary, and don't let it go unrecorded because the overall task already gets a memory node.\n8. If a verification step produces an ambiguous or empty result, fix it or explicitly state you're abandoning it and why — don't silently move to a different check without comment.\n9. After stopping a process you started, verify it's actually stopped (re-check the port/process, don't assume a non-zero exit code means success without reading what it actually says).\n10. Terseness applies to filler, not to material caveats. If you privately reason through a real limitation or risk (deployment portability, a known edge case, a tradeoff the developer should know about), state it in one line in your response — don't resolve it silently and move on.\n\n## Before writing new code, adding a dependency, or creating an abstraction\nWalk this ladder, stop at the first rung that holds:\n1. **Existence** — does this need to exist at all?\n2. **Standard library** — does the language/runtime provide it natively?\n3. **Platform** — does the environment provide it?\n4. **Minimal package** — is there a small, already-installed library that does it well?\n5. **Custom code** — only then, write the minimum required.\n\nExceptions — always implemented fully regardless of the ladder above:\n- **Security**: cryptographic verification, sanitization, permission checks\n- **Trust-boundary validation**: input schema checks at API borders\n- **Accessibility**: ARIA labels, semantic markup, keyboard focus states\n- **Data-loss prevention**: backups, transactions, confirmations, rollbacks\n\n## Code quality\n- Defensive by default: null/undefined checks, empty-array validation, type checks, real error handling.\n- Surgical scope: change exactly what the task requires, across as many files as the task genuinely touches in one turn. Don't artificially split one coherent task into multiple turns, and don't touch files outside its scope.\n\n## Skill: nextjs-conventions\n# Next.js-Specific Gotchas\n\n- params/searchParams/cookies()/headers() are async since Next.js 15 — always await before accessing properties.\n- Don't rely on __dirname for runtime file paths — webpack/Turbopack bundling doesn't preserve it reliably. Use process.cwd() or an explicitly passed root path.\n\n## Skill: analyze\nROLE\nYou are analyzing an existing codebase to produce a written profile of it. This\nprofile will be loaded into every future coding session as static context, so\nfuture AI-assisted work matches this codebase's actual conventions instead of\ngeneric defaults. Accuracy matters more than completeness — a wrong claim here\nactively misleads every future session that reads it.\n\nOBJECTIVE\nProduce three files in a new top-level `agent/` folder (not `.agent/` — this one\nis meant to be human-readable and version-controlled):\n\n  agent/project-overview.md   — what this project is and does\n  agent/folder-structure.md   — annotated map of the codebase\n  agent/code-conventions.md   — observed coding standards, with evidence\n\nHARD RULES — read these before starting\n1. Document what IS, not what SHOULD be. You are not writing a style guide of\n   best practices — you are recording the actual, current conventions of this\n   specific codebase, even if they're imperfect or inconsistent.\n2. Never state a convention without pointing to a real example. Every claim in\n   code-conventions.md must cite at least one specific file and, where useful,\n   a line number or function name. \"This codebase uses camelCase for functions\"\n   is not acceptable on its own — \"Functions use camelCase, e.g. getUserById in\n   src/services/user.ts\" is.\n3. If you find inconsistency, report it as inconsistency. Do not silently pick\n   the version you think is cleaner and present it as the standard. State which\n   pattern is dominant (with a rough file count) and which files are outliers.\n   Future sessions need to know the codebase isn't uniform, not be told a lie\n   that it is.\n4. Trust config files over inferred patterns. eslint configs, prettier configs,\n   tsconfig.json, .editorconfig, and similar are ground truth — read them\n   directly rather than guessing the standard from a handful of code samples.\n5. No padded prose. Bullet points and short, concrete statements. A future\n   session reading this should get the facts in seconds, not paragraphs.\n6. Sample broadly, not narrowly. Read files from every major directory, not\n   just the first few you encounter — conventions can differ between, say, the\n   API layer and the frontend, and you need to catch that.\n\nPROCESS\n\nStep 1 — Map the structure\n- Get a full directory tree, excluding node_modules, build output, .git, lock\n  files, and other generated/vendored content.\n- For each top-level and significant second-level directory, open 2-3\n  representative files to determine its actual purpose (don't guess from the\n  folder name alone — \"utils\" can mean very different things).\n\nStep 2 — Identify the stack\n- Read package.json / requirements.txt / go.mod / Cargo.toml / etc.\n- Note the language(s), frameworks, major dependencies, build tooling, and\n  package manager in use.\n- Note the framework's major version specifically (e.g. \"Next.js 15.2\") — this\n  matters more than it sounds like it should, since framework conventions\n  shift between major versions.\n\nStep 3 — Determine what the project actually does\n- Read the README if one exists.\n- Read the package/project description field if present.\n- Look at entry points: main files, route definitions, CLI command\n  registrations, exported public API surface.\n- Summarize: what does this software do, who is it for, what are its main\n  user-facing or system-facing capabilities.\n\nStep 4 — Sample real code across the codebase\n- Read at least 2-3 files from each major directory identified in Step 1.\n- Look specifically for: naming conventions (files, functions, variables,\n  types), function length/decomposition style, error-handling approach\n  (exceptions vs return codes vs Result types, etc.), comment density and\n  style, import/module organization, testing approach and coverage level,\n  any consistent architectural pattern (e.g. repository pattern, MVC, hooks-\n  based, etc.).\n\nStep 5 — Extract conventions, with evidence\n- For each convention you identify, note: the pattern itself, a specific\n  example (file + line/function), and whether it's consistent throughout or\n  has exceptions.\n- Cross-check against any linter/formatter config found in Step 2 — if a\n  config exists, quote its actual rules rather than re-deriving them from\n  code samples.\n\nStep 6 — Write the three output files\n\n  agent/project-overview.md\n    - One paragraph: what this project is and who it's for\n    - Tech stack (language, framework + version, key dependencies)\n    - Main capabilities / feature areas (bullet list)\n    - Entry points (where execution starts, where routes/commands are defined)\n\n  agent/folder-structure.md\n    - Annotated directory tree (major folders only, not every file)\n    - One line per folder: its actual purpose, based on what you read in it,\n      not what its name implies\n    - Note any folder whose contents don't match what its name suggests\n\n  agent/code-conventions.md\n    - Naming conventions (files, functions, variables, types) — with examples\n    - Error-handling pattern — with examples\n    - Testing approach (framework, location, what's covered) — with examples\n    - Formatting/linting rules — quoted directly from config files if present\n    - Any consistent architectural pattern in use — with examples\n    - A clearly labeled \"Inconsistencies\" section listing anywhere the\n      codebase doesn't follow one rule uniformly, with the dominant pattern\n      and the outliers named by file\n\nDO NOT\n- Invent conventions the codebase doesn't actually demonstrate\n- Smooth over inconsistencies into a single idealized rule\n- Pad output with generic software-engineering advice not grounded in what you\n  actually read\n- Skip directories because they look unimportant — an undocumented convention\n  in a \"minor\" folder is still a convention a future session needs to match\n\nWHEN DONE\nReport which files you read to produce each claim, so a human can spot-check\nthis analysis before it becomes load-bearing context for every future session."
+    },
+    {
+      "role": "user",
+      "content": "in this project the hooks folder summarize the folder what it does and what its internal files does and write it i a md file."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_00_xwALYpSXLft3JsLQQe3z0712",
+          "type": "function",
+          "function": {
+            "name": "glob",
+            "arguments": "{\"pattern\":\"**/hooks/**\"}"
+          }
+        },
+        {
+          "id": "call_01_L4XaD4Tk3PfyEPWL7Rdi9464",
+          "type": "function",
+          "function": {
+            "name": "grep",
+            "arguments": "{\"pattern\":\"hooks\",\"path\":\"agent/folder-structure.md\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_xwALYpSXLft3JsLQQe3z0712",
+      "content": "node_modules/react-redux/src/hooks\nnode_modules/react-redux/src/hooks/useDispatch.ts\nnode_modules/react-redux/src/hooks/useReduxContext.ts\nnode_modules/react-redux/src/hooks/useSelector.ts\nnode_modules/react-redux/src/hooks/useStore.ts\nhooks\nhooks/useAuth.hooks.ts\nhooks/useDashboardMetrics.hook.ts\nhooks/useObjectState.hook.ts"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_01_L4XaD4Tk3PfyEPWL7Rdi9464",
+      "content": "No matches found for pattern \"hooks\"."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_00_9tAG6fx1hUb8dHS9Agos4325",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\":\"hooks/useAuth.hooks.ts\"}"
+          }
+        },
+        {
+          "id": "call_01_CSnt509ySuddWC1SXWb64461",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\":\"hooks/useDashboardMetrics.hook.ts\"}"
+          }
+        },
+        {
+          "id": "call_02_wHTK47rIyA3VnwvA2akz9911",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\":\"hooks/useObjectState.hook.ts\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_9tAG6fx1hUb8dHS9Agos4325",
+      "content": "export { useAuth, AuthProvider } from \"@/contexts/AuthContext\";\n"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_01_CSnt509ySuddWC1SXWb64461",
+      "content": "import { api } from \"@/utils/api\";\nimport { useEffect, useState, useCallback } from \"react\";\nimport { DEFAULT_METRICS } from \"@/app/dashboard/dashboard.constents\";\n\ninterface AgenciesMetricResponse {\n    data: {\n        value: string;\n        change: string;\n        isPositive: boolean;\n        sparklineData: number[];\n    };\n}\n\ninterface GenericMetricResponse {\n    data: {\n        currentValue: number;\n        percentageChange: number;\n        sparklineData: number[];\n    };\n}\n\nexport interface MetricItem {\n    title: string;\n    value: string;\n    change: string;\n    isPositive: boolean;\n    sparklineData: number[];\n    isLoading: boolean;\n}\n\nexport interface DashboardFilters {\n    dateRange: \"all\" | \"7d\" | \"30d\" | \"90d\";\n    subType: \"all\" | string;\n    agencyStatus: \"all\" | \"active\" | \"pending\";\n}\n\nexport default function useDashboardMetrics(\n    filters: DashboardFilters = {\n        dateRange: \"all\",\n        subType: \"all\",\n        agencyStatus: \"all\",\n    }\n) {\n    // 1. Initialize state with DEFAULT_METRICS to avoid undefined glitches\n    const [dashboardMetrics, setDashboardMetrics] = useState<MetricItem[]>(DEFAULT_METRICS);\n    // 2. Safely populate elements inside the state updater\n    const updateMetric = useCallback((index: number, updatedFields: Partial<MetricItem>) => {\n        setDashboardMetrics((prev) =>\n            (prev || []).map((metric, i) =>\n                i === index\n                    ? {\n                          ...metric,\n                          ...updatedFields,\n                      }\n                    : metric\n            )\n        );\n    }, []);\n\n    const fetchAgencies = async (params: Record<string, string>) => {\n        try {\n            updateMetric(0, { isLoading: true });\n            const res = await api<AgenciesMetricResponse>(\"/dashboard/agencies\", {\n                method: \"GET\",\n                params,\n            });\n            if (res.data) {\n                updateMetric(0, {\n                    title: \"Registered Agencies\",\n                    value: res.data.value,\n                    change: res.data.change,\n                    isPositive: res.data.isPositive,\n                    sparklineData: res.data.sparklineData,\n                    isLoading: false,\n                });\n            }\n        } catch (error) {\n            console.error(\"Failed to fetch agencies:\", error);\n            updateMetric(1, {\n                value: \"N/A\",\n                change: \"0%\",\n                isPositive: false,\n                sparklineData: [],\n                isLoading: false,\n            });\n        }\n    };\n\n    const fetchRevenue = async (params: Record<string, string>) => {\n        try {\n            updateMetric(1, { isLoading: true });\n            const res = await api<GenericMetricResponse>(\"/dashboard/revenue\", {\n                method: \"GET\",\n                params,\n            });\n            const val = res.data?.currentValue ?? 0;\n            const pct = res.data?.percentageChange ?? 0;\n            updateMetric(1, {\n                title: \"Revenue\",\n                value: `$${Number(val).toLocaleString()}`,\n                change: `${pct >= 0 ? \"+\" : \"\"}${pct}%`,\n                isPositive: pct >= 0,\n                sparklineData: res.data.sparklineData,\n                isLoading: false,\n            });\n        } catch (error) {\n            console.error(\"Failed to fetch revenue:\", error);\n            updateMetric(1, { value: \"N/A\", change: \"0%\", isPositive: false, isLoading: false });\n        }\n    };\n\n    const fetchActiveSessions = async (params: Record<string, string>) => {\n        try {\n            updateMetric(2, { isLoading: true });\n            const res = await api<GenericMetricResponse>(\"/dashboard/active-sessions\", {\n                method: \"GET\",\n                params,\n            });\n            const val = res.data?.currentValue ?? 0;\n            const pct = res.data?.percentageChange ?? 0;\n            updateMetric(2, {\n                title: \"Active User Sessions\",\n                value: Number(val).toLocaleString(),\n                change: `${pct >= 0 ? \"+\" : \"\"}${pct}%`,\n                isPositive: pct >= 0,\n                sparklineData: res.data.sparklineData,\n                isLoading: false,\n            });\n        } catch (error) {\n            console.error(\"Failed to fetch active sessions:\", error);\n            updateMetric(2, { value: \"N/A\", change: \"0%\", isPositive: false, isLoading: false });\n        }\n    };\n\n    const fetchAiMetrics = async (params: Record<string, string>) => {\n        try {\n            updateMetric(3, { isLoading: true });\n            const res = await api<GenericMetricResponse>(\"/dashboard/ai-tokens\", {\n                method: \"GET\",\n                params,\n            });\n            const val = res.data?.currentValue ?? 0;\n            const pct = res.data?.percentageChange ?? 0;\n            updateMetric(3, {\n                title: \"Avg. AI Model Tokens/Sec\",\n                value: Number(val).toLocaleString(),\n                change: `${pct >= 0 ? \"+\" : \"\"}${pct}%`,\n                isPositive: pct >= 0,\n                sparklineData: res.data.sparklineData,\n                isLoading: false,\n            });\n        } catch (error) {\n            console.error(\"Failed to fetch AI metrics:\", error);\n            updateMetric(3, { value: \"N/A\", change: \"0%\", isPositive: false, isLoading: false });\n        }\n    };\n\n    const fetchAllMetrics = useCallback(() => {\n        // Build the search params from the filters argument\n        const queryParams: Record<string, string> = {};\n        if (filters.dateRange) queryParams.dateRange = filters.dateRange;\n        if (filters.subType) queryParams.subType = filters.subType;\n        if (filters.agencyStatus) queryParams.agencyagencyStatus = filters.agencyStatus;\n\n        // Fire all API requests in parallel. They will resolve and update the UI independently.\n        fetchAgencies(queryParams);\n        fetchRevenue(queryParams);\n        fetchActiveSessions(queryParams);\n        fetchAiMetrics(queryParams);\n    }, [filters.dateRange, filters.subType, filters.agencyStatus, updateMetric]);\n\n    useEffect(() => {\n        fetchAllMetrics();\n    }, [fetchAllMetrics]);\n\n    // Derived global loading state: true if at least one card is still loading\n    const loading = dashboardMetrics.some((metric) => metric.isLoading);\n\n    return {\n        loading,\n        dashboardMetrics,\n        refetch: fetchAllMetrics,\n    };\n}\n"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_02_wHTK47rIyA3VnwvA2akz9911",
+      "content": "\"use client\";\n\nimport { useEffect, useState } from \"react\";\n\nexport default function useObjectState<T extends object>(\n    initialState: T,\n    dependencies: React.DependencyList = []\n) {\n    const [state, setState] = useState(initialState);\n\n    useEffect(() => {\n        setState(initialState);\n    }, dependencies);\n\n    const updateState = (update: Partial<T> | ((prev: T) => Partial<T>)) => {\n        setState((prev) => ({\n            ...prev,\n            ...(typeof update === \"function\" ? update(prev) : update),\n        }));\n    };\n\n    return [state, updateState] as const;\n}\n"
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_00_NMYyAmr8F5TAxQeEixZU7645",
+          "type": "function",
+          "function": {
+            "name": "write_file",
+            "arguments": "{\"path\":\"agent/hooks-summary.md\",\"content\":\"# `hooks/` — Summary\\n\\nThe `hooks/` directory contains three custom React hooks that encapsulate reusable stateful logic for the application. They serve as a thin abstraction layer between the UI components and data/context sources.\\n\\n## Files\\n\\n### `useAuth.hooks.ts`\\nA re-export barrel file. It simply re-exports `useAuth` and `AuthProvider` from `@/contexts/AuthContext`. The real implementation lives in the contexts layer — this file exists to provide a consistent import path (`@/hooks/useAuth`) for consumers.\\n\\n### `useDashboardMetrics.hook.ts`\\nThe most substantial hook in the folder. It manages fetching and state for all four dashboard metric cards (Registered Agencies, Revenue, Active User Sessions, Avg. AI Model Tokens/Sec) in a single hook.\\n\\n**Key details:**\\n- Accepts a `DashboardFilters` object (`dateRange`, `subType`, `agencyStatus`) and fires four parallel API calls when filters change.\\n- Each API response updates its corresponding `MetricItem` index via a `useCallback`-wrapped `updateMetric` helper.\\n- Returns `loading` (derived — true if any metric is still loading), `dashboardMetrics` (the array of `MetricItem`), and a `refetch` function.\\n- Uses `DEFAULT_METRICS` from `@/app/dashboard/dashboard.constents` to initialize state without undefined glitches.\\n- Error handling: on fetch failure, the affected metric is set to `\\\"N/A\\\"` / `\\\"0%\\\"` and `isLoading` is set to `false`.\\n\\n### `useObjectState.hook.ts`\\nA generic utility hook that simplifies state management for object-shaped state.\\n\\n**Key details:**\\n- Generic over `T extends object`.\\n- Accepts an `initialState` and an optional `dependencies` array. When dependencies change, state resets to `initialState` (via `useEffect`).\\n- Provides an `updateState` function that accepts either a partial object or a functional updater `(prev: T) => Partial<T>`, merging it into the existing state via spread.\\n- Returns a tuple `[state, updateState]` for a minimal, `useState`-like API.\\n\\n## Naming inconsistency\\n\\nThe three files use two different naming conventions:\\n- `useAuth.hooks.ts` — plural `.hooks.ts`\\n- `useDashboardMetrics.hook.ts` — singular `.hook.ts`\\n- `useObjectState.hook.ts` — singular `.hook.ts`\\n\\nThe singular `.hook.ts` is the majority pattern (2 of 3 files). The plural `.hooks.ts` in `useAuth.hooks.ts` is an outlier.\\n\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_NMYyAmr8F5TAxQeEixZU7645",
+      "content": "File successfully written to \"agent/hooks-summary.md\"."
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "read_file",
+        "description": "Reads the entire contents of a file at the specified path.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to read, relative or absolute."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "write_file",
+        "description": "Writes complete contents to a file at the specified path. Creates parent directories if they do not exist.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to write, relative or absolute."
+            },
+            "content": {
+              "type": "string",
+              "description": "The content to write to the file."
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "edit_file",
+        "description": "Edits an existing file by replacing specific blocks of text. Edits are applied in the order specified.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to edit."
+            },
+            "edits": {
+              "type": "array",
+              "description": "A list of edit search/replace chunks to execute.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "oldText": {
+                    "type": "string",
+                    "description": "The exact lines of text to be replaced (must match exactly in the file including whitespace)."
+                  },
+                  "newText": {
+                    "type": "string",
+                    "description": "The new replacement text."
+                  }
+                },
+                "required": [
+                  "oldText",
+                  "newText"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path",
+            "edits"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "bash",
+        "description": "Executes a shell command and returns its output. For commands expected to take more than a few seconds (npm install, build, compile, test, dev server), use start_process instead — it returns a jobId you can poll without re-issuing the command.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to run."
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "start_process",
+        "description": "Starts a command as a tracked background process and returns a jobId immediately. Use this for npm install, npm run build, npx next build, test runs, dev servers — any command expected to take more than a few seconds. After starting, call check_process or wait_process with the returned jobId to poll its status. NEVER re-issue start_process for the same logical operation to check if it finished — use wait_process.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to start in the background."
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "check_process",
+        "description": "Returns the current status of a background process started with start_process. Returns running state, exit code (if finished), and any new output since the last check.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "description": "The jobId returned by start_process."
+            }
+          },
+          "required": [
+            "jobId"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "wait_process",
+        "description": "Polls a background process until it completes or the timeout is reached. Use this instead of re-issuing the original command when waiting for npm install, builds, or tests. Returns the exit code, completion status, and full output on completion.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "description": "The jobId returned by start_process."
+            },
+            "timeoutMs": {
+              "type": "number",
+              "description": "Maximum milliseconds to wait before returning (default: 15000). Use 60000+ for npm install or builds."
+            }
+          },
+          "required": [
+            "jobId"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "grep",
+        "description": "Searches for text patterns inside files in a directory recursively (ignores node_modules and .git by default).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "The text string or regex pattern to search for."
+            },
+            "path": {
+              "type": "string",
+              "description": "The directory path to search in (defaults to current project root)."
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "glob",
+        "description": "Finds files matching a glob pattern (e.g. \"src/**/*.ts\").",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "The glob pattern to match (e.g. \"**/*.json\")."
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_memory",
+        "description": "Searches the memory index cache by keyword to identify matching node summaries and tags.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query topic keywords."
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "The maximum matches to return (default 8)."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "recall_memory",
+        "description": "Retrieves relevant memory node content clusters by executing a keyword search and BFS graph expansion.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The query topic keywords to seed the search."
+            },
+            "maxSeedNodes": {
+              "type": "number",
+              "description": "Maximum seed nodes to expand from (default 3)."
+            },
+            "maxHops": {
+              "type": "number",
+              "description": "Maximum hops to walk (default 2)."
+            },
+            "tokenBudget": {
+              "type": "number",
+              "description": "Max token budget for returned content (default 4000)."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "record_memory",
+        "description": "Records a new structured memory node and links it to existing related nodes.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string",
+              "description": "One-line summary description of the fact or decision."
+            },
+            "content": {
+              "type": "string",
+              "description": "Detailed content body of the memory."
+            },
+            "relatedTo": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Array of related memory node ID strings."
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Free-form topic tags."
+            },
+            "sourceSessionId": {
+              "type": "string",
+              "description": "Source session ID context (optional)."
+            }
+          },
+          "required": [
+            "summary",
+            "content",
+            "relatedTo",
+            "tags"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_memory_node",
+        "description": "Retrieves a single memory node by its exact ID string for drill-down.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The exact Memory Node ID."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    }
+  ]
+}
+=====================================================
+
+
+==================== API RESPONSE ====================
+Duration: 466ms
+Time: 2026-06-22T04:41:47.093Z
+Response:
+{
+  "id": "6d75f8e6-91e5-44aa-b46b-47a8d161fa1c",
+  "object": "chat.completion",
+  "created": 1782103305,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "`agent/hooks-summary.md` written. It covers what each hook does, the API/pattern used, and flags the naming inconsistency (`.hooks.ts` vs `.hook.ts`).",
+        "reasoning_content": "Done. The file has been written."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 6993,
+    "completion_tokens": 48,
+    "total_tokens": 7041,
+    "prompt_tokens_details": {
+      "cached_tokens": 6912
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 8
+    },
+    "prompt_cache_hit_tokens": 6912,
+    "prompt_cache_miss_tokens": 81
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}
+======================================================
+
+[SYSTEM] [2026-06-22T04:41:47.096Z] API stats: Model: deepseek-v4-flash | Model Latency: 1.72s | Speed: 28.0 t/s | Input: 6993 | Output: 48 | Cache Hit: HIT | Cost: $0.000398 USD
+
+==================== API REQUEST ====================
+URL: https://api.deepseek.com/chat/completions (deepseek-v4-flash)
+Time: 2026-06-22T09:49:25.346Z
+Payload:
+{
+  "model": "deepseek-v4-flash",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are justcode, a terminal-based agentic coding assistant. You help developers plan and implement codebase changes.\n\n## Context discipline\n- Do not read a file's contents unless you're about to edit it or need its internal logic to make a decision.\n- For status or structure questions, check `agent/folder-structure.md` or list directories — don't read file contents to answer them.\n- Fetch only what the task needs. Don't run broad directory scans unless a targeted lookup fails.\n\n## Planning\n- Trivial, single-concern edits: no upfront plan, just make the change.\n- Multi-file or architecturally significant changes: state a brief 2-4 line plan (files + rationale) once, before acting. No flow diagrams, no restating it afterward.\n- Anything substantial enough to need real planning should go through `/plan`, not be re-litigated here.\n\nHost: linux — POSIX — use standard Unix commands (ls, rm, &&)\n\n## Historical Project Decisions (Project Memory)\nThe following is a prose log of past decisions and context for this project. Keep these decisions in mind and ensure your choices do not conflict with them:\n\n[2026-06-22T04:41:03.140Z] - Failed to summarize session automatically: OpenAI Provider HTTP Error 401: {\"error\":{\"message\":\"Authentication Fails, Your api key: ****eac5 is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}\n\n\n## Active skills for this task\nThe skills below were selected by the harness for this task, not by you — no classification step, this is fixed. Follow them as written. If a skill conflicts with the developer's explicit request, follow the skill and say why in one line.\n\n## Skill: coding-efficiency\n# Coding & Efficiency Standards\n\nHard constraints, not style preferences.\n\n## Output style\n1. No filler, greetings, or restated plans. Go directly to the action.\n2. Do not explain what you're about to do before doing it — the diff or command output speaks for itself.\n3. Do not summarize after completing, unless asked. No \"Here's what I did\" recap.\n4. One sentence max when answering a direct question.\n5. If you catch yourself re-evaluating the same decision twice, stop and execute the first viable option.\n6. Before substantive output, state a one-line budget: `[budget: ~N lines / files]`. This is a target, not a ceiling — never cut a needed defensive check or truncate a correct answer just to hit it.\n7. When you resolve a non-obvious bug or environment quirk mid-task (not just at task completion), call `record_memory` for that specific finding immediately — don't wait to fold it into an end-of-task summary, and don't let it go unrecorded because the overall task already gets a memory node.\n8. If a verification step produces an ambiguous or empty result, fix it or explicitly state you're abandoning it and why — don't silently move to a different check without comment.\n9. After stopping a process you started, verify it's actually stopped (re-check the port/process, don't assume a non-zero exit code means success without reading what it actually says).\n10. Terseness applies to filler, not to material caveats. If you privately reason through a real limitation or risk (deployment portability, a known edge case, a tradeoff the developer should know about), state it in one line in your response — don't resolve it silently and move on.\n\n## Before writing new code, adding a dependency, or creating an abstraction\nWalk this ladder, stop at the first rung that holds:\n1. **Existence** — does this need to exist at all?\n2. **Standard library** — does the language/runtime provide it natively?\n3. **Platform** — does the environment provide it?\n4. **Minimal package** — is there a small, already-installed library that does it well?\n5. **Custom code** — only then, write the minimum required.\n\nExceptions — always implemented fully regardless of the ladder above:\n- **Security**: cryptographic verification, sanitization, permission checks\n- **Trust-boundary validation**: input schema checks at API borders\n- **Accessibility**: ARIA labels, semantic markup, keyboard focus states\n- **Data-loss prevention**: backups, transactions, confirmations, rollbacks\n\n## Code quality\n- Defensive by default: null/undefined checks, empty-array validation, type checks, real error handling.\n- Surgical scope: change exactly what the task requires, across as many files as the task genuinely touches in one turn. Don't artificially split one coherent task into multiple turns, and don't touch files outside its scope.\n\n## Skill: nextjs-conventions\n# Next.js-Specific Gotchas\n\n- params/searchParams/cookies()/headers() are async since Next.js 15 — always await before accessing properties.\n- Don't rely on __dirname for runtime file paths — webpack/Turbopack bundling doesn't preserve it reliably. Use process.cwd() or an explicitly passed root path.\n\n## Skill: analyze\nROLE\nYou are analyzing an existing codebase to produce a written profile of it. This\nprofile will be loaded into every future coding session as static context, so\nfuture AI-assisted work matches this codebase's actual conventions instead of\ngeneric defaults. Accuracy matters more than completeness — a wrong claim here\nactively misleads every future session that reads it.\n\nOBJECTIVE\nProduce three files in a new top-level `agent/` folder (not `.agent/` — this one\nis meant to be human-readable and version-controlled):\n\n  agent/project-overview.md   — what this project is and does\n  agent/folder-structure.md   — annotated map of the codebase\n  agent/code-conventions.md   — observed coding standards, with evidence\n\nHARD RULES — read these before starting\n1. Document what IS, not what SHOULD be. You are not writing a style guide of\n   best practices — you are recording the actual, current conventions of this\n   specific codebase, even if they're imperfect or inconsistent.\n2. Never state a convention without pointing to a real example. Every claim in\n   code-conventions.md must cite at least one specific file and, where useful,\n   a line number or function name. \"This codebase uses camelCase for functions\"\n   is not acceptable on its own — \"Functions use camelCase, e.g. getUserById in\n   src/services/user.ts\" is.\n3. If you find inconsistency, report it as inconsistency. Do not silently pick\n   the version you think is cleaner and present it as the standard. State which\n   pattern is dominant (with a rough file count) and which files are outliers.\n   Future sessions need to know the codebase isn't uniform, not be told a lie\n   that it is.\n4. Trust config files over inferred patterns. eslint configs, prettier configs,\n   tsconfig.json, .editorconfig, and similar are ground truth — read them\n   directly rather than guessing the standard from a handful of code samples.\n5. No padded prose. Bullet points and short, concrete statements. A future\n   session reading this should get the facts in seconds, not paragraphs.\n6. Sample broadly, not narrowly. Read files from every major directory, not\n   just the first few you encounter — conventions can differ between, say, the\n   API layer and the frontend, and you need to catch that.\n\nPROCESS\n\nStep 1 — Map the structure\n- Get a full directory tree, excluding node_modules, build output, .git, lock\n  files, and other generated/vendored content.\n- For each top-level and significant second-level directory, open 2-3\n  representative files to determine its actual purpose (don't guess from the\n  folder name alone — \"utils\" can mean very different things).\n\nStep 2 — Identify the stack\n- Read package.json / requirements.txt / go.mod / Cargo.toml / etc.\n- Note the language(s), frameworks, major dependencies, build tooling, and\n  package manager in use.\n- Note the framework's major version specifically (e.g. \"Next.js 15.2\") — this\n  matters more than it sounds like it should, since framework conventions\n  shift between major versions.\n\nStep 3 — Determine what the project actually does\n- Read the README if one exists.\n- Read the package/project description field if present.\n- Look at entry points: main files, route definitions, CLI command\n  registrations, exported public API surface.\n- Summarize: what does this software do, who is it for, what are its main\n  user-facing or system-facing capabilities.\n\nStep 4 — Sample real code across the codebase\n- Read at least 2-3 files from each major directory identified in Step 1.\n- Look specifically for: naming conventions (files, functions, variables,\n  types), function length/decomposition style, error-handling approach\n  (exceptions vs return codes vs Result types, etc.), comment density and\n  style, import/module organization, testing approach and coverage level,\n  any consistent architectural pattern (e.g. repository pattern, MVC, hooks-\n  based, etc.).\n\nStep 5 — Extract conventions, with evidence\n- For each convention you identify, note: the pattern itself, a specific\n  example (file + line/function), and whether it's consistent throughout or\n  has exceptions.\n- Cross-check against any linter/formatter config found in Step 2 — if a\n  config exists, quote its actual rules rather than re-deriving them from\n  code samples.\n\nStep 6 — Write the three output files\n\n  agent/project-overview.md\n    - One paragraph: what this project is and who it's for\n    - Tech stack (language, framework + version, key dependencies)\n    - Main capabilities / feature areas (bullet list)\n    - Entry points (where execution starts, where routes/commands are defined)\n\n  agent/folder-structure.md\n    - Annotated directory tree (major folders only, not every file)\n    - One line per folder: its actual purpose, based on what you read in it,\n      not what its name implies\n    - Note any folder whose contents don't match what its name suggests\n\n  agent/code-conventions.md\n    - Naming conventions (files, functions, variables, types) — with examples\n    - Error-handling pattern — with examples\n    - Testing approach (framework, location, what's covered) — with examples\n    - Formatting/linting rules — quoted directly from config files if present\n    - Any consistent architectural pattern in use — with examples\n    - A clearly labeled \"Inconsistencies\" section listing anywhere the\n      codebase doesn't follow one rule uniformly, with the dominant pattern\n      and the outliers named by file\n\nDO NOT\n- Invent conventions the codebase doesn't actually demonstrate\n- Smooth over inconsistencies into a single idealized rule\n- Pad output with generic software-engineering advice not grounded in what you\n  actually read\n- Skip directories because they look unimportant — an undocumented convention\n  in a \"minor\" folder is still a convention a future session needs to match\n\nWHEN DONE\nReport which files you read to produce each claim, so a human can spot-check\nthis analysis before it becomes load-bearing context for every future session."
+    },
+    {
+      "role": "user",
+      "content": "in this project the hooks folder summarize the folder what it does and what its internal files does and write it i a md file."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_00_xwALYpSXLft3JsLQQe3z0712",
+          "type": "function",
+          "function": {
+            "name": "glob",
+            "arguments": "{\"pattern\":\"**/hooks/**\"}"
+          }
+        },
+        {
+          "id": "call_01_L4XaD4Tk3PfyEPWL7Rdi9464",
+          "type": "function",
+          "function": {
+            "name": "grep",
+            "arguments": "{\"pattern\":\"hooks\",\"path\":\"agent/folder-structure.md\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_xwALYpSXLft3JsLQQe3z0712",
+      "content": "node_modules/react-redux/src/hooks\nnode_modules/react-redux/src/hooks/useDispatch.ts\nnode_modules/react-redux/src/hooks/useReduxContext.ts\nnode_modules/react-redux/src/hooks/useSelector.ts\nnode_modules/react-redux/src/hooks/useStore.ts\nhooks\nhooks/useAuth.hooks.ts\nhooks/useDashboardMetrics.hook.ts\nhooks/useObjectState.hook.ts"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_01_L4XaD4Tk3PfyEPWL7Rdi9464",
+      "content": "No matches found for pattern \"hooks\"."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_00_9tAG6fx1hUb8dHS9Agos4325",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\":\"hooks/useAuth.hooks.ts\"}"
+          }
+        },
+        {
+          "id": "call_01_CSnt509ySuddWC1SXWb64461",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\":\"hooks/useDashboardMetrics.hook.ts\"}"
+          }
+        },
+        {
+          "id": "call_02_wHTK47rIyA3VnwvA2akz9911",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\":\"hooks/useObjectState.hook.ts\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_9tAG6fx1hUb8dHS9Agos4325",
+      "content": "export { useAuth, AuthProvider } from \"@/contexts/AuthContext\";\n"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_01_CSnt509ySuddWC1SXWb64461",
+      "content": "import { api } from \"@/utils/api\";\nimport { useEffect, useState, useCallback } from \"react\";\nimport { DEFAULT_METRICS } from \"@/app/dashboard/dashboard.constents\";\n\ninterface AgenciesMetricResponse {\n    data: {\n        value: string;\n        change: string;\n        isPositive: boolean;\n        sparklineData: number[];\n    };\n}\n\ninterface GenericMetricResponse {\n    data: {\n        currentValue: number;\n        percentageChange: number;\n        sparklineData: number[];\n    };\n}\n\nexport interface MetricItem {\n    title: string;\n    value: string;\n    change: string;\n    isPositive: boolean;\n    sparklineData: number[];\n    isLoading: boolean;\n}\n\nexport interface DashboardFilters {\n    dateRange: \"all\" | \"7d\" | \"30d\" | \"90d\";\n    subType: \"all\" | string;\n    agencyStatus: \"all\" | \"active\" | \"pending\";\n}\n\nexport default function useDashboardMetrics(\n    filters: DashboardFilters = {\n        dateRange: \"all\",\n        subType: \"all\",\n        agencyStatus: \"all\",\n    }\n) {\n    // 1. Initialize state with DEFAULT_METRICS to avoid undefined glitches\n    const [dashboardMetrics, setDashboardMetrics] = useState<MetricItem[]>(DEFAULT_METRICS);\n    // 2. Safely populate elements inside the state updater\n    const updateMetric = useCallback((index: number, updatedFields: Partial<MetricItem>) => {\n        setDashboardMetrics((prev) =>\n            (prev || []).map((metric, i) =>\n                i === index\n                    ? {\n                          ...metric,\n                          ...updatedFields,\n                      }\n                    : metric\n            )\n        );\n    }, []);\n\n    const fetchAgencies = async (params: Record<string, string>) => {\n        try {\n            updateMetric(0, { isLoading: true });\n            const res = await api<AgenciesMetricResponse>(\"/dashboard/agencies\", {\n                method: \"GET\",\n                params,\n            });\n            if (res.data) {\n                updateMetric(0, {\n                    title: \"Registered Agencies\",\n                    value: res.data.value,\n                    change: res.data.change,\n                    isPositive: res.data.isPositive,\n                    sparklineData: res.data.sparklineData,\n                    isLoading: false,\n                });\n            }\n        } catch (error) {\n            console.error(\"Failed to fetch agencies:\", error);\n            updateMetric(1, {\n                value: \"N/A\",\n                change: \"0%\",\n                isPositive: false,\n                sparklineData: [],\n                isLoading: false,\n            });\n        }\n    };\n\n    const fetchRevenue = async (params: Record<string, string>) => {\n        try {\n            updateMetric(1, { isLoading: true });\n            const res = await api<GenericMetricResponse>(\"/dashboard/revenue\", {\n                method: \"GET\",\n                params,\n            });\n            const val = res.data?.currentValue ?? 0;\n            const pct = res.data?.percentageChange ?? 0;\n            updateMetric(1, {\n                title: \"Revenue\",\n                value: `$${Number(val).toLocaleString()}`,\n                change: `${pct >= 0 ? \"+\" : \"\"}${pct}%`,\n                isPositive: pct >= 0,\n                sparklineData: res.data.sparklineData,\n                isLoading: false,\n            });\n        } catch (error) {\n            console.error(\"Failed to fetch revenue:\", error);\n            updateMetric(1, { value: \"N/A\", change: \"0%\", isPositive: false, isLoading: false });\n        }\n    };\n\n    const fetchActiveSessions = async (params: Record<string, string>) => {\n        try {\n            updateMetric(2, { isLoading: true });\n            const res = await api<GenericMetricResponse>(\"/dashboard/active-sessions\", {\n                method: \"GET\",\n                params,\n            });\n            const val = res.data?.currentValue ?? 0;\n            const pct = res.data?.percentageChange ?? 0;\n            updateMetric(2, {\n                title: \"Active User Sessions\",\n                value: Number(val).toLocaleString(),\n                change: `${pct >= 0 ? \"+\" : \"\"}${pct}%`,\n                isPositive: pct >= 0,\n                sparklineData: res.data.sparklineData,\n                isLoading: false,\n            });\n        } catch (error) {\n            console.error(\"Failed to fetch active sessions:\", error);\n            updateMetric(2, { value: \"N/A\", change: \"0%\", isPositive: false, isLoading: false });\n        }\n    };\n\n    const fetchAiMetrics = async (params: Record<string, string>) => {\n        try {\n            updateMetric(3, { isLoading: true });\n            const res = await api<GenericMetricResponse>(\"/dashboard/ai-tokens\", {\n                method: \"GET\",\n                params,\n            });\n            const val = res.data?.currentValue ?? 0;\n            const pct = res.data?.percentageChange ?? 0;\n            updateMetric(3, {\n                title: \"Avg. AI Model Tokens/Sec\",\n                value: Number(val).toLocaleString(),\n                change: `${pct >= 0 ? \"+\" : \"\"}${pct}%`,\n                isPositive: pct >= 0,\n                sparklineData: res.data.sparklineData,\n                isLoading: false,\n            });\n        } catch (error) {\n            console.error(\"Failed to fetch AI metrics:\", error);\n            updateMetric(3, { value: \"N/A\", change: \"0%\", isPositive: false, isLoading: false });\n        }\n    };\n\n    const fetchAllMetrics = useCallback(() => {\n        // Build the search params from the filters argument\n        const queryParams: Record<string, string> = {};\n        if (filters.dateRange) queryParams.dateRange = filters.dateRange;\n        if (filters.subType) queryParams.subType = filters.subType;\n        if (filters.agencyStatus) queryParams.agencyagencyStatus = filters.agencyStatus;\n\n        // Fire all API requests in parallel. They will resolve and update the UI independently.\n        fetchAgencies(queryParams);\n        fetchRevenue(queryParams);\n        fetchActiveSessions(queryParams);\n        fetchAiMetrics(queryParams);\n    }, [filters.dateRange, filters.subType, filters.agencyStatus, updateMetric]);\n\n    useEffect(() => {\n        fetchAllMetrics();\n    }, [fetchAllMetrics]);\n\n    // Derived global loading state: true if at least one card is still loading\n    const loading = dashboardMetrics.some((metric) => metric.isLoading);\n\n    return {\n        loading,\n        dashboardMetrics,\n        refetch: fetchAllMetrics,\n    };\n}\n"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_02_wHTK47rIyA3VnwvA2akz9911",
+      "content": "\"use client\";\n\nimport { useEffect, useState } from \"react\";\n\nexport default function useObjectState<T extends object>(\n    initialState: T,\n    dependencies: React.DependencyList = []\n) {\n    const [state, setState] = useState(initialState);\n\n    useEffect(() => {\n        setState(initialState);\n    }, dependencies);\n\n    const updateState = (update: Partial<T> | ((prev: T) => Partial<T>)) => {\n        setState((prev) => ({\n            ...prev,\n            ...(typeof update === \"function\" ? update(prev) : update),\n        }));\n    };\n\n    return [state, updateState] as const;\n}\n"
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_00_NMYyAmr8F5TAxQeEixZU7645",
+          "type": "function",
+          "function": {
+            "name": "write_file",
+            "arguments": "{\"path\":\"agent/hooks-summary.md\",\"content\":\"# `hooks/` — Summary\\n\\nThe `hooks/` directory contains three custom React hooks that encapsulate reusable stateful logic for the application. They serve as a thin abstraction layer between the UI components and data/context sources.\\n\\n## Files\\n\\n### `useAuth.hooks.ts`\\nA re-export barrel file. It simply re-exports `useAuth` and `AuthProvider` from `@/contexts/AuthContext`. The real implementation lives in the contexts layer — this file exists to provide a consistent import path (`@/hooks/useAuth`) for consumers.\\n\\n### `useDashboardMetrics.hook.ts`\\nThe most substantial hook in the folder. It manages fetching and state for all four dashboard metric cards (Registered Agencies, Revenue, Active User Sessions, Avg. AI Model Tokens/Sec) in a single hook.\\n\\n**Key details:**\\n- Accepts a `DashboardFilters` object (`dateRange`, `subType`, `agencyStatus`) and fires four parallel API calls when filters change.\\n- Each API response updates its corresponding `MetricItem` index via a `useCallback`-wrapped `updateMetric` helper.\\n- Returns `loading` (derived — true if any metric is still loading), `dashboardMetrics` (the array of `MetricItem`), and a `refetch` function.\\n- Uses `DEFAULT_METRICS` from `@/app/dashboard/dashboard.constents` to initialize state without undefined glitches.\\n- Error handling: on fetch failure, the affected metric is set to `\\\"N/A\\\"` / `\\\"0%\\\"` and `isLoading` is set to `false`.\\n\\n### `useObjectState.hook.ts`\\nA generic utility hook that simplifies state management for object-shaped state.\\n\\n**Key details:**\\n- Generic over `T extends object`.\\n- Accepts an `initialState` and an optional `dependencies` array. When dependencies change, state resets to `initialState` (via `useEffect`).\\n- Provides an `updateState` function that accepts either a partial object or a functional updater `(prev: T) => Partial<T>`, merging it into the existing state via spread.\\n- Returns a tuple `[state, updateState]` for a minimal, `useState`-like API.\\n\\n## Naming inconsistency\\n\\nThe three files use two different naming conventions:\\n- `useAuth.hooks.ts` — plural `.hooks.ts`\\n- `useDashboardMetrics.hook.ts` — singular `.hook.ts`\\n- `useObjectState.hook.ts` — singular `.hook.ts`\\n\\nThe singular `.hook.ts` is the majority pattern (2 of 3 files). The plural `.hooks.ts` in `useAuth.hooks.ts` is an outlier.\\n\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_NMYyAmr8F5TAxQeEixZU7645",
+      "content": "File successfully written to \"agent/hooks-summary.md\"."
+    },
+    {
+      "role": "assistant",
+      "content": "`agent/hooks-summary.md` written. It covers what each hook does, the API/pattern used, and flags the naming inconsistency (`.hooks.ts` vs `.hook.ts`)."
+    },
+    {
+      "role": "user",
+      "content": "helo"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "read_file",
+        "description": "Reads the entire contents of a file at the specified path.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to read, relative or absolute."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "write_file",
+        "description": "Writes complete contents to a file at the specified path. Creates parent directories if they do not exist.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to write, relative or absolute."
+            },
+            "content": {
+              "type": "string",
+              "description": "The content to write to the file."
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "edit_file",
+        "description": "Edits an existing file by replacing specific blocks of text. Edits are applied in the order specified.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to edit."
+            },
+            "edits": {
+              "type": "array",
+              "description": "A list of edit search/replace chunks to execute.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "oldText": {
+                    "type": "string",
+                    "description": "The exact lines of text to be replaced (must match exactly in the file including whitespace)."
+                  },
+                  "newText": {
+                    "type": "string",
+                    "description": "The new replacement text."
+                  }
+                },
+                "required": [
+                  "oldText",
+                  "newText"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path",
+            "edits"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "bash",
+        "description": "Executes a shell command and returns its output. For commands expected to take more than a few seconds (npm install, build, compile, test, dev server), use start_process instead — it returns a jobId you can poll without re-issuing the command.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to run."
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "start_process",
+        "description": "Starts a command as a tracked background process and returns a jobId immediately. Use this for npm install, npm run build, npx next build, test runs, dev servers — any command expected to take more than a few seconds. After starting, call check_process or wait_process with the returned jobId to poll its status. NEVER re-issue start_process for the same logical operation to check if it finished — use wait_process.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to start in the background."
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "check_process",
+        "description": "Returns the current status of a background process started with start_process. Returns running state, exit code (if finished), and any new output since the last check.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "description": "The jobId returned by start_process."
+            }
+          },
+          "required": [
+            "jobId"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "wait_process",
+        "description": "Polls a background process until it completes or the timeout is reached. Use this instead of re-issuing the original command when waiting for npm install, builds, or tests. Returns the exit code, completion status, and full output on completion.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "description": "The jobId returned by start_process."
+            },
+            "timeoutMs": {
+              "type": "number",
+              "description": "Maximum milliseconds to wait before returning (default: 15000). Use 60000+ for npm install or builds."
+            }
+          },
+          "required": [
+            "jobId"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "grep",
+        "description": "Searches for text patterns inside files in a directory recursively (ignores node_modules and .git by default).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "The text string or regex pattern to search for."
+            },
+            "path": {
+              "type": "string",
+              "description": "The directory path to search in (defaults to current project root)."
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "glob",
+        "description": "Finds files matching a glob pattern (e.g. \"src/**/*.ts\").",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "The glob pattern to match (e.g. \"**/*.json\")."
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_memory",
+        "description": "Searches the memory index cache by keyword to identify matching node summaries and tags.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query topic keywords."
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "The maximum matches to return (default 8)."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "recall_memory",
+        "description": "Retrieves relevant memory node content clusters by executing a keyword search and BFS graph expansion.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The query topic keywords to seed the search."
+            },
+            "maxSeedNodes": {
+              "type": "number",
+              "description": "Maximum seed nodes to expand from (default 3)."
+            },
+            "maxHops": {
+              "type": "number",
+              "description": "Maximum hops to walk (default 2)."
+            },
+            "tokenBudget": {
+              "type": "number",
+              "description": "Max token budget for returned content (default 4000)."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "record_memory",
+        "description": "Records a new structured memory node and links it to existing related nodes.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string",
+              "description": "One-line summary description of the fact or decision."
+            },
+            "content": {
+              "type": "string",
+              "description": "Detailed content body of the memory."
+            },
+            "relatedTo": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Array of related memory node ID strings."
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Free-form topic tags."
+            },
+            "sourceSessionId": {
+              "type": "string",
+              "description": "Source session ID context (optional)."
+            }
+          },
+          "required": [
+            "summary",
+            "content",
+            "relatedTo",
+            "tags"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_memory_node",
+        "description": "Retrieves a single memory node by its exact ID string for drill-down.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The exact Memory Node ID."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    }
+  ]
+}
+=====================================================
+
+
+==================== API RESPONSE ====================
+Duration: 925ms
+Time: 2026-06-22T09:49:27.135Z
+Response:
+{
+  "id": "65a4d875-d746-4883-b320-cd1ee7eaea9e",
+  "object": "chat.completion",
+  "created": 1782121766,
+  "model": "deepseek-v4-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "The user just said \"helo\" - a casual greeting. I should respond minimally per the coding-efficiency skill (no filler, no greetings)."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 6816,
+    "completion_tokens": 31,
+    "total_tokens": 6847,
+    "prompt_tokens_details": {
+      "cached_tokens": 4096
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 30
+    },
+    "prompt_cache_hit_tokens": 4096,
+    "prompt_cache_miss_tokens": 2720
+  },
+  "system_fingerprint": "fp_8b330d02d0_prod0820_fp8_kvcache_20260402"
+}
+======================================================
+
+[SYSTEM] [2026-06-22T09:49:27.144Z] API stats: Model: deepseek-v4-flash | Model Latency: 1.80s | Speed: 17.3 t/s | Input: 6816 | Output: 31 | Cache Hit: HIT | Cost: $0.000384 USD
+
+==================== API REQUEST ====================
+URL: https://api.deepseek.com/chat/completions (deepseek-v4-flash)
+Time: 2026-06-22T09:49:50.266Z
+Payload:
+{
+  "model": "deepseek-v4-flash",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are justcode, a terminal-based agentic coding assistant. You help developers plan and implement codebase changes.\n\n## Context discipline\n- Do not read a file's contents unless you're about to edit it or need its internal logic to make a decision.\n- For status or structure questions, check `agent/folder-structure.md` or list directories — don't read file contents to answer them.\n- Fetch only what the task needs. Don't run broad directory scans unless a targeted lookup fails.\n\n## Planning\n- Trivial, single-concern edits: no upfront plan, just make the change.\n- Multi-file or architecturally significant changes: state a brief 2-4 line plan (files + rationale) once, before acting. No flow diagrams, no restating it afterward.\n- Anything substantial enough to need real planning should go through `/plan`, not be re-litigated here.\n\nHost: linux — POSIX — use standard Unix commands (ls, rm, &&)\n\n## Historical Project Decisions (Project Memory)\nThe following is a prose log of past decisions and context for this project. Keep these decisions in mind and ensure your choices do not conflict with them:\n\n[2026-06-22T04:41:03.140Z] - Failed to summarize session automatically: OpenAI Provider HTTP Error 401: {\"error\":{\"message\":\"Authentication Fails, Your api key: ****eac5 is invalid\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}\n\n\n## Active skills for this task\nThe skills below were selected by the harness for this task, not by you — no classification step, this is fixed. Follow them as written. If a skill conflicts with the developer's explicit request, follow the skill and say why in one line.\n\n## Skill: coding-efficiency\n# Coding & Efficiency Standards\n\nHard constraints, not style preferences.\n\n## Output style\n1. No filler, greetings, or restated plans. Go directly to the action.\n2. Do not explain what you're about to do before doing it — the diff or command output speaks for itself.\n3. Do not summarize after completing, unless asked. No \"Here's what I did\" recap.\n4. One sentence max when answering a direct question.\n5. If you catch yourself re-evaluating the same decision twice, stop and execute the first viable option.\n6. Before substantive output, state a one-line budget: `[budget: ~N lines / files]`. This is a target, not a ceiling — never cut a needed defensive check or truncate a correct answer just to hit it.\n7. When you resolve a non-obvious bug or environment quirk mid-task (not just at task completion), call `record_memory` for that specific finding immediately — don't wait to fold it into an end-of-task summary, and don't let it go unrecorded because the overall task already gets a memory node.\n8. If a verification step produces an ambiguous or empty result, fix it or explicitly state you're abandoning it and why — don't silently move to a different check without comment.\n9. After stopping a process you started, verify it's actually stopped (re-check the port/process, don't assume a non-zero exit code means success without reading what it actually says).\n10. Terseness applies to filler, not to material caveats. If you privately reason through a real limitation or risk (deployment portability, a known edge case, a tradeoff the developer should know about), state it in one line in your response — don't resolve it silently and move on.\n\n## Before writing new code, adding a dependency, or creating an abstraction\nWalk this ladder, stop at the first rung that holds:\n1. **Existence** — does this need to exist at all?\n2. **Standard library** — does the language/runtime provide it natively?\n3. **Platform** — does the environment provide it?\n4. **Minimal package** — is there a small, already-installed library that does it well?\n5. **Custom code** — only then, write the minimum required.\n\nExceptions — always implemented fully regardless of the ladder above:\n- **Security**: cryptographic verification, sanitization, permission checks\n- **Trust-boundary validation**: input schema checks at API borders\n- **Accessibility**: ARIA labels, semantic markup, keyboard focus states\n- **Data-loss prevention**: backups, transactions, confirmations, rollbacks\n\n## Code quality\n- Defensive by default: null/undefined checks, empty-array validation, type checks, real error handling.\n- Surgical scope: change exactly what the task requires, across as many files as the task genuinely touches in one turn. Don't artificially split one coherent task into multiple turns, and don't touch files outside its scope.\n\n## Skill: nextjs-conventions\n# Next.js-Specific Gotchas\n\n- params/searchParams/cookies()/headers() are async since Next.js 15 — always await before accessing properties.\n- Don't rely on __dirname for runtime file paths — webpack/Turbopack bundling doesn't preserve it reliably. Use process.cwd() or an explicitly passed root path.\n\n## Skill: analyze\nROLE\nYou are analyzing an existing codebase to produce a written profile of it. This\nprofile will be loaded into every future coding session as static context, so\nfuture AI-assisted work matches this codebase's actual conventions instead of\ngeneric defaults. Accuracy matters more than completeness — a wrong claim here\nactively misleads every future session that reads it.\n\nOBJECTIVE\nProduce three files in a new top-level `agent/` folder (not `.agent/` — this one\nis meant to be human-readable and version-controlled):\n\n  agent/project-overview.md   — what this project is and does\n  agent/folder-structure.md   — annotated map of the codebase\n  agent/code-conventions.md   — observed coding standards, with evidence\n\nHARD RULES — read these before starting\n1. Document what IS, not what SHOULD be. You are not writing a style guide of\n   best practices — you are recording the actual, current conventions of this\n   specific codebase, even if they're imperfect or inconsistent.\n2. Never state a convention without pointing to a real example. Every claim in\n   code-conventions.md must cite at least one specific file and, where useful,\n   a line number or function name. \"This codebase uses camelCase for functions\"\n   is not acceptable on its own — \"Functions use camelCase, e.g. getUserById in\n   src/services/user.ts\" is.\n3. If you find inconsistency, report it as inconsistency. Do not silently pick\n   the version you think is cleaner and present it as the standard. State which\n   pattern is dominant (with a rough file count) and which files are outliers.\n   Future sessions need to know the codebase isn't uniform, not be told a lie\n   that it is.\n4. Trust config files over inferred patterns. eslint configs, prettier configs,\n   tsconfig.json, .editorconfig, and similar are ground truth — read them\n   directly rather than guessing the standard from a handful of code samples.\n5. No padded prose. Bullet points and short, concrete statements. A future\n   session reading this should get the facts in seconds, not paragraphs.\n6. Sample broadly, not narrowly. Read files from every major directory, not\n   just the first few you encounter — conventions can differ between, say, the\n   API layer and the frontend, and you need to catch that.\n\nPROCESS\n\nStep 1 — Map the structure\n- Get a full directory tree, excluding node_modules, build output, .git, lock\n  files, and other generated/vendored content.\n- For each top-level and significant second-level directory, open 2-3\n  representative files to determine its actual purpose (don't guess from the\n  folder name alone — \"utils\" can mean very different things).\n\nStep 2 — Identify the stack\n- Read package.json / requirements.txt / go.mod / Cargo.toml / etc.\n- Note the language(s), frameworks, major dependencies, build tooling, and\n  package manager in use.\n- Note the framework's major version specifically (e.g. \"Next.js 15.2\") — this\n  matters more than it sounds like it should, since framework conventions\n  shift between major versions.\n\nStep 3 — Determine what the project actually does\n- Read the README if one exists.\n- Read the package/project description field if present.\n- Look at entry points: main files, route definitions, CLI command\n  registrations, exported public API surface.\n- Summarize: what does this software do, who is it for, what are its main\n  user-facing or system-facing capabilities.\n\nStep 4 — Sample real code across the codebase\n- Read at least 2-3 files from each major directory identified in Step 1.\n- Look specifically for: naming conventions (files, functions, variables,\n  types), function length/decomposition style, error-handling approach\n  (exceptions vs return codes vs Result types, etc.), comment density and\n  style, import/module organization, testing approach and coverage level,\n  any consistent architectural pattern (e.g. repository pattern, MVC, hooks-\n  based, etc.).\n\nStep 5 — Extract conventions, with evidence\n- For each convention you identify, note: the pattern itself, a specific\n  example (file + line/function), and whether it's consistent throughout or\n  has exceptions.\n- Cross-check against any linter/formatter config found in Step 2 — if a\n  config exists, quote its actual rules rather than re-deriving them from\n  code samples.\n\nStep 6 — Write the three output files\n\n  agent/project-overview.md\n    - One paragraph: what this project is and who it's for\n    - Tech stack (language, framework + version, key dependencies)\n    - Main capabilities / feature areas (bullet list)\n    - Entry points (where execution starts, where routes/commands are defined)\n\n  agent/folder-structure.md\n    - Annotated directory tree (major folders only, not every file)\n    - One line per folder: its actual purpose, based on what you read in it,\n      not what its name implies\n    - Note any folder whose contents don't match what its name suggests\n\n  agent/code-conventions.md\n    - Naming conventions (files, functions, variables, types) — with examples\n    - Error-handling pattern — with examples\n    - Testing approach (framework, location, what's covered) — with examples\n    - Formatting/linting rules — quoted directly from config files if present\n    - Any consistent architectural pattern in use — with examples\n    - A clearly labeled \"Inconsistencies\" section listing anywhere the\n      codebase doesn't follow one rule uniformly, with the dominant pattern\n      and the outliers named by file\n\nDO NOT\n- Invent conventions the codebase doesn't actually demonstrate\n- Smooth over inconsistencies into a single idealized rule\n- Pad output with generic software-engineering advice not grounded in what you\n  actually read\n- Skip directories because they look unimportant — an undocumented convention\n  in a \"minor\" folder is still a convention a future session needs to match\n\nWHEN DONE\nReport which files you read to produce each claim, so a human can spot-check\nthis analysis before it becomes load-bearing context for every future session."
+    },
+    {
+      "role": "user",
+      "content": "in this project the hooks folder summarize the folder what it does and what its internal files does and write it i a md file."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_00_xwALYpSXLft3JsLQQe3z0712",
+          "type": "function",
+          "function": {
+            "name": "glob",
+            "arguments": "{\"pattern\":\"**/hooks/**\"}"
+          }
+        },
+        {
+          "id": "call_01_L4XaD4Tk3PfyEPWL7Rdi9464",
+          "type": "function",
+          "function": {
+            "name": "grep",
+            "arguments": "{\"pattern\":\"hooks\",\"path\":\"agent/folder-structure.md\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_xwALYpSXLft3JsLQQe3z0712",
+      "content": "node_modules/react-redux/src/hooks\nnode_modules/react-redux/src/hooks/useDispatch.ts\nnode_modules/react-redux/src/hooks/useReduxContext.ts\nnode_modules/react-redux/src/hooks/useSelector.ts\nnode_modules/react-redux/src/hooks/useStore.ts\nhooks\nhooks/useAuth.hooks.ts\nhooks/useDashboardMetrics.hook.ts\nhooks/useObjectState.hook.ts"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_01_L4XaD4Tk3PfyEPWL7Rdi9464",
+      "content": "No matches found for pattern \"hooks\"."
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_00_9tAG6fx1hUb8dHS9Agos4325",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\":\"hooks/useAuth.hooks.ts\"}"
+          }
+        },
+        {
+          "id": "call_01_CSnt509ySuddWC1SXWb64461",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\":\"hooks/useDashboardMetrics.hook.ts\"}"
+          }
+        },
+        {
+          "id": "call_02_wHTK47rIyA3VnwvA2akz9911",
+          "type": "function",
+          "function": {
+            "name": "read_file",
+            "arguments": "{\"path\":\"hooks/useObjectState.hook.ts\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_9tAG6fx1hUb8dHS9Agos4325",
+      "content": "export { useAuth, AuthProvider } from \"@/contexts/AuthContext\";\n"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_01_CSnt509ySuddWC1SXWb64461",
+      "content": "import { api } from \"@/utils/api\";\nimport { useEffect, useState, useCallback } from \"react\";\nimport { DEFAULT_METRICS } from \"@/app/dashboard/dashboard.constents\";\n\ninterface AgenciesMetricResponse {\n    data: {\n        value: string;\n        change: string;\n        isPositive: boolean;\n        sparklineData: number[];\n    };\n}\n\ninterface GenericMetricResponse {\n    data: {\n        currentValue: number;\n        percentageChange: number;\n        sparklineData: number[];\n    };\n}\n\nexport interface MetricItem {\n    title: string;\n    value: string;\n    change: string;\n    isPositive: boolean;\n    sparklineData: number[];\n    isLoading: boolean;\n}\n\nexport interface DashboardFilters {\n    dateRange: \"all\" | \"7d\" | \"30d\" | \"90d\";\n    subType: \"all\" | string;\n    agencyStatus: \"all\" | \"active\" | \"pending\";\n}\n\nexport default function useDashboardMetrics(\n    filters: DashboardFilters = {\n        dateRange: \"all\",\n        subType: \"all\",\n        agencyStatus: \"all\",\n    }\n) {\n    // 1. Initialize state with DEFAULT_METRICS to avoid undefined glitches\n    const [dashboardMetrics, setDashboardMetrics] = useState<MetricItem[]>(DEFAULT_METRICS);\n    // 2. Safely populate elements inside the state updater\n    const updateMetric = useCallback((index: number, updatedFields: Partial<MetricItem>) => {\n        setDashboardMetrics((prev) =>\n            (prev || []).map((metric, i) =>\n                i === index\n                    ? {\n                          ...metric,\n                          ...updatedFields,\n                      }\n                    : metric\n            )\n        );\n    }, []);\n\n    const fetchAgencies = async (params: Record<string, string>) => {\n        try {\n            updateMetric(0, { isLoading: true });\n            const res = await api<AgenciesMetricResponse>(\"/dashboard/agencies\", {\n                method: \"GET\",\n                params,\n            });\n            if (res.data) {\n                updateMetric(0, {\n                    title: \"Registered Agencies\",\n                    value: res.data.value,\n                    change: res.data.change,\n                    isPositive: res.data.isPositive,\n                    sparklineData: res.data.sparklineData,\n                    isLoading: false,\n                });\n            }\n        } catch (error) {\n            console.error(\"Failed to fetch agencies:\", error);\n            updateMetric(1, {\n                value: \"N/A\",\n                change: \"0%\",\n                isPositive: false,\n                sparklineData: [],\n                isLoading: false,\n            });\n        }\n    };\n\n    const fetchRevenue = async (params: Record<string, string>) => {\n        try {\n            updateMetric(1, { isLoading: true });\n            const res = await api<GenericMetricResponse>(\"/dashboard/revenue\", {\n                method: \"GET\",\n                params,\n            });\n            const val = res.data?.currentValue ?? 0;\n            const pct = res.data?.percentageChange ?? 0;\n            updateMetric(1, {\n                title: \"Revenue\",\n                value: `$${Number(val).toLocaleString()}`,\n                change: `${pct >= 0 ? \"+\" : \"\"}${pct}%`,\n                isPositive: pct >= 0,\n                sparklineData: res.data.sparklineData,\n                isLoading: false,\n            });\n        } catch (error) {\n            console.error(\"Failed to fetch revenue:\", error);\n            updateMetric(1, { value: \"N/A\", change: \"0%\", isPositive: false, isLoading: false });\n        }\n    };\n\n    const fetchActiveSessions = async (params: Record<string, string>) => {\n        try {\n            updateMetric(2, { isLoading: true });\n            const res = await api<GenericMetricResponse>(\"/dashboard/active-sessions\", {\n                method: \"GET\",\n                params,\n            });\n            const val = res.data?.currentValue ?? 0;\n            const pct = res.data?.percentageChange ?? 0;\n            updateMetric(2, {\n                title: \"Active User Sessions\",\n                value: Number(val).toLocaleString(),\n                change: `${pct >= 0 ? \"+\" : \"\"}${pct}%`,\n                isPositive: pct >= 0,\n                sparklineData: res.data.sparklineData,\n                isLoading: false,\n            });\n        } catch (error) {\n            console.error(\"Failed to fetch active sessions:\", error);\n            updateMetric(2, { value: \"N/A\", change: \"0%\", isPositive: false, isLoading: false });\n        }\n    };\n\n    const fetchAiMetrics = async (params: Record<string, string>) => {\n        try {\n            updateMetric(3, { isLoading: true });\n            const res = await api<GenericMetricResponse>(\"/dashboard/ai-tokens\", {\n                method: \"GET\",\n                params,\n            });\n            const val = res.data?.currentValue ?? 0;\n            const pct = res.data?.percentageChange ?? 0;\n            updateMetric(3, {\n                title: \"Avg. AI Model Tokens/Sec\",\n                value: Number(val).toLocaleString(),\n                change: `${pct >= 0 ? \"+\" : \"\"}${pct}%`,\n                isPositive: pct >= 0,\n                sparklineData: res.data.sparklineData,\n                isLoading: false,\n            });\n        } catch (error) {\n            console.error(\"Failed to fetch AI metrics:\", error);\n            updateMetric(3, { value: \"N/A\", change: \"0%\", isPositive: false, isLoading: false });\n        }\n    };\n\n    const fetchAllMetrics = useCallback(() => {\n        // Build the search params from the filters argument\n        const queryParams: Record<string, string> = {};\n        if (filters.dateRange) queryParams.dateRange = filters.dateRange;\n        if (filters.subType) queryParams.subType = filters.subType;\n        if (filters.agencyStatus) queryParams.agencyagencyStatus = filters.agencyStatus;\n\n        // Fire all API requests in parallel. They will resolve and update the UI independently.\n        fetchAgencies(queryParams);\n        fetchRevenue(queryParams);\n        fetchActiveSessions(queryParams);\n        fetchAiMetrics(queryParams);\n    }, [filters.dateRange, filters.subType, filters.agencyStatus, updateMetric]);\n\n    useEffect(() => {\n        fetchAllMetrics();\n    }, [fetchAllMetrics]);\n\n    // Derived global loading state: true if at least one card is still loading\n    const loading = dashboardMetrics.some((metric) => metric.isLoading);\n\n    return {\n        loading,\n        dashboardMetrics,\n        refetch: fetchAllMetrics,\n    };\n}\n"
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_02_wHTK47rIyA3VnwvA2akz9911",
+      "content": "\"use client\";\n\nimport { useEffect, useState } from \"react\";\n\nexport default function useObjectState<T extends object>(\n    initialState: T,\n    dependencies: React.DependencyList = []\n) {\n    const [state, setState] = useState(initialState);\n\n    useEffect(() => {\n        setState(initialState);\n    }, dependencies);\n\n    const updateState = (update: Partial<T> | ((prev: T) => Partial<T>)) => {\n        setState((prev) => ({\n            ...prev,\n            ...(typeof update === \"function\" ? update(prev) : update),\n        }));\n    };\n\n    return [state, updateState] as const;\n}\n"
+    },
+    {
+      "role": "assistant",
+      "content": null,
+      "tool_calls": [
+        {
+          "id": "call_00_NMYyAmr8F5TAxQeEixZU7645",
+          "type": "function",
+          "function": {
+            "name": "write_file",
+            "arguments": "{\"path\":\"agent/hooks-summary.md\",\"content\":\"# `hooks/` — Summary\\n\\nThe `hooks/` directory contains three custom React hooks that encapsulate reusable stateful logic for the application. They serve as a thin abstraction layer between the UI components and data/context sources.\\n\\n## Files\\n\\n### `useAuth.hooks.ts`\\nA re-export barrel file. It simply re-exports `useAuth` and `AuthProvider` from `@/contexts/AuthContext`. The real implementation lives in the contexts layer — this file exists to provide a consistent import path (`@/hooks/useAuth`) for consumers.\\n\\n### `useDashboardMetrics.hook.ts`\\nThe most substantial hook in the folder. It manages fetching and state for all four dashboard metric cards (Registered Agencies, Revenue, Active User Sessions, Avg. AI Model Tokens/Sec) in a single hook.\\n\\n**Key details:**\\n- Accepts a `DashboardFilters` object (`dateRange`, `subType`, `agencyStatus`) and fires four parallel API calls when filters change.\\n- Each API response updates its corresponding `MetricItem` index via a `useCallback`-wrapped `updateMetric` helper.\\n- Returns `loading` (derived — true if any metric is still loading), `dashboardMetrics` (the array of `MetricItem`), and a `refetch` function.\\n- Uses `DEFAULT_METRICS` from `@/app/dashboard/dashboard.constents` to initialize state without undefined glitches.\\n- Error handling: on fetch failure, the affected metric is set to `\\\"N/A\\\"` / `\\\"0%\\\"` and `isLoading` is set to `false`.\\n\\n### `useObjectState.hook.ts`\\nA generic utility hook that simplifies state management for object-shaped state.\\n\\n**Key details:**\\n- Generic over `T extends object`.\\n- Accepts an `initialState` and an optional `dependencies` array. When dependencies change, state resets to `initialState` (via `useEffect`).\\n- Provides an `updateState` function that accepts either a partial object or a functional updater `(prev: T) => Partial<T>`, merging it into the existing state via spread.\\n- Returns a tuple `[state, updateState]` for a minimal, `useState`-like API.\\n\\n## Naming inconsistency\\n\\nThe three files use two different naming conventions:\\n- `useAuth.hooks.ts` — plural `.hooks.ts`\\n- `useDashboardMetrics.hook.ts` — singular `.hook.ts`\\n- `useObjectState.hook.ts` — singular `.hook.ts`\\n\\nThe singular `.hook.ts` is the majority pattern (2 of 3 files). The plural `.hooks.ts` in `useAuth.hooks.ts` is an outlier.\\n\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "call_00_NMYyAmr8F5TAxQeEixZU7645",
+      "content": "File successfully written to \"agent/hooks-summary.md\"."
+    },
+    {
+      "role": "assistant",
+      "content": "`agent/hooks-summary.md` written. It covers what each hook does, the API/pattern used, and flags the naming inconsistency (`.hooks.ts` vs `.hook.ts`)."
+    },
+    {
+      "role": "user",
+      "content": "helo"
+    },
+    {
+      "role": "assistant",
+      "content": null
+    },
+    {
+      "role": "user",
+      "content": "what is the rajdhani of india"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "read_file",
+        "description": "Reads the entire contents of a file at the specified path.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to read, relative or absolute."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "write_file",
+        "description": "Writes complete contents to a file at the specified path. Creates parent directories if they do not exist.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to write, relative or absolute."
+            },
+            "content": {
+              "type": "string",
+              "description": "The content to write to the file."
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "edit_file",
+        "description": "Edits an existing file by replacing specific blocks of text. Edits are applied in the order specified.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "The path of the file to edit."
+            },
+            "edits": {
+              "type": "array",
+              "description": "A list of edit search/replace chunks to execute.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "oldText": {
+                    "type": "string",
+                    "description": "The exact lines of text to be replaced (must match exactly in the file including whitespace)."
+                  },
+                  "newText": {
+                    "type": "string",
+                    "description": "The new replacement text."
+                  }
+                },
+                "required": [
+                  "oldText",
+                  "newText"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path",
+            "edits"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "bash",
+        "description": "Executes a shell command and returns its output. For commands expected to take more than a few seconds (npm install, build, compile, test, dev server), use start_process instead — it returns a jobId you can poll without re-issuing the command.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to run."
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "start_process",
+        "description": "Starts a command as a tracked background process and returns a jobId immediately. Use this for npm install, npm run build, npx next build, test runs, dev servers — any command expected to take more than a few seconds. After starting, call check_process or wait_process with the returned jobId to poll its status. NEVER re-issue start_process for the same logical operation to check if it finished — use wait_process.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The shell command to start in the background."
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "check_process",
+        "description": "Returns the current status of a background process started with start_process. Returns running state, exit code (if finished), and any new output since the last check.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "description": "The jobId returned by start_process."
+            }
+          },
+          "required": [
+            "jobId"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "wait_process",
+        "description": "Polls a background process until it completes or the timeout is reached. Use this instead of re-issuing the original command when waiting for npm install, builds, or tests. Returns the exit code, completion status, and full output on completion.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "jobId": {
+              "type": "string",
+              "description": "The jobId returned by start_process."
+            },
+            "timeoutMs": {
+              "type": "number",
+              "description": "Maximum milliseconds to wait before returning (default: 15000). Use 60000+ for npm install or builds."
+            }
+          },
+          "required": [
+            "jobId"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "grep",
+        "description": "Searches for text patterns inside files in a directory recursively (ignores node_modules and .git by default).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "The text string or regex pattern to search for."
+            },
+            "path": {
+              "type": "string",
+              "description": "The directory path to search in (defaults to current project root)."
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "glob",
+        "description": "Finds files matching a glob pattern (e.g. \"src/**/*.ts\").",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string",
+              "description": "The glob pattern to match (e.g. \"**/*.json\")."
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "search_memory",
+        "description": "Searches the memory index cache by keyword to identify matching node summaries and tags.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The search query topic keywords."
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "The maximum matches to return (default 8)."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "recall_memory",
+        "description": "Retrieves relevant memory node content clusters by executing a keyword search and BFS graph expansion.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "The query topic keywords to seed the search."
+            },
+            "maxSeedNodes": {
+              "type": "number",
+              "description": "Maximum seed nodes to expand from (default 3)."
+            },
+            "maxHops": {
+              "type": "number",
+              "description": "Maximum hops to walk (default 2)."
+            },
+            "tokenBudget": {
+              "type": "number",
+              "description": "Max token budget for returned content (default 4000)."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "record_memory",
+        "description": "Records a new structured memory node and links it to existing related nodes.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string",
+              "description": "One-line summary description of the fact or decision."
+            },
+            "content": {
+              "type": "string",
+              "description": "Detailed content body of the memory."
+            },
+            "relatedTo": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Array of related memory node ID strings."
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Free-form topic tags."
+            },
+            "sourceSessionId": {
+              "type": "string",
+              "description": "Source session ID context (optional)."
+            }
+          },
+          "required": [
+            "summary",
+            "content",
+            "relatedTo",
+            "tags"
+          ]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_memory_node",
+        "description": "Retrieves a single memory node by its exact ID string for drill-down.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "The exact Memory Node ID."
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      }
+    }
+  ]
+}
+=====================================================
+
+[ERROR] [2026-06-22T09:49:51.042Z] OpenAI API returned error status 400: {"error":{"message":"Invalid assistant message: content or tool_calls must be set","type":"invalid_request_error","param":null,"code":"invalid_request_error"}}

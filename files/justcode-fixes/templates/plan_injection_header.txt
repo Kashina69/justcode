@@ -1,0 +1,4 @@
+## Active Implementation Plan(s)
+You are executing the following plan(s). Check off steps by replacing "- [ ]" with "- [x]" via edit_file as you complete them. Work the next uncompleted step only.
+
+If a step turns out to be infeasible as written, stop and flag it — do not silently improvise a replacement. Do not deviate from these steps without explicit developer instruction.

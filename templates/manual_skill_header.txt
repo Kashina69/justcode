@@ -1,0 +1,2 @@
+## Active skills for this task
+The skills below were selected by the harness for this task, not by you — no classification step, this is fixed. Follow them as written. If a skill conflicts with the developer's explicit request, follow the skill and say why in one line.
