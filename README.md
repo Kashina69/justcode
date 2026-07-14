@@ -417,3 +417,5 @@ Routing is keyword-based on the last user message — no extra LLM call.
 
 
 find . -iname "*justcode*"
+
+openTUI

@@ -1,1 +1,0 @@
-[2026-06-22T04:41:03.140Z] - Failed to summarize session automatically: OpenAI Provider HTTP Error 401: {"error":{"message":"Authentication Fails, Your api key: \*\*\*\*eac5 is invalid","type":"authentication_error","param":null,"code":"invalid_request_error"}}

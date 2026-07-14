@@ -18,7 +18,7 @@ This repo is the **justcode AI coding assistant itself** (not a user project). B
 | `design/` | Project design specs (plan.md, plan2.md, token-efficiency-plan.md) | `design/index.md` |
 | `session-reviews/` | Live session bug analysis and transcripts (fix.md, fix2.md, output.txt, prompt-review.md) | `session-reviews/index.md` |
 | `archives/` | Build artifacts and working copies (files/, files.zip) | `archives/index.md` |
-| `personal/` | Personal developer notes (ubuntu-optimization.md) | `personal/index.md` |
+| `other/personal/` | Personal developer notes (ubuntu-optimization.md) | `personal/index.md` |
 | `opencode_review/` | Full analysis and improvement review files — see section below | `opencode_review/index.md` |
 | `docs/` | Consolidated project documentation index — merged from former `docs/` and `docs_two/`. Identical files deduplicated, differing versions kept as `_2` suffix. See `docs/index.md` for full file-by-file index. | `opencode_review/DOCS.md`, `docs/index.md` |
 | `ai workflow/` | Supporting tooling (skill-creator Python scripts, skill evaluation prompts, frontend design skill drafts). Not loaded by the code. | — |
