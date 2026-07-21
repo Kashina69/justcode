@@ -4,7 +4,7 @@ import {
   ConversationMessage,
   ToolCall,
   MessageContentBlock,
-  ModelAlias
+  ModelAlias,
 } from '../providers/types.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { SafetyGate } from '../safety/gate.js';
@@ -17,27 +17,20 @@ import { Skill } from '../skills/types.js';
 import { logTokenUsage } from '../memory/global.js';
 import { ProjectMemoryManager } from '../memory/project.js';
 import { readPromptSync, readTemplateSync } from '../config/prompts.js';
-import { TurnMetrics, AgentOptions, ProgressCallback } from './types.js';
-import { buildCalibrationNote } from './calibration.js';
-import { routeModelAlias } from './router.js';
-import { detectHostEnvironment } from './environment.js';
+import { AgentOptions, ProgressCallback } from './types.js';
 
 export class AgentOrchestrator {
-  private config: AppConfig;
-  private registry: ToolRegistry;
-  private safetyGate: SafetyGate;
-  private backupManager: BackupManager;
-  private onConfirmDangerousTool: (toolCall: ToolCall, reason: string) => Promise<boolean>;
+  readonly config: AppConfig;
+  readonly registry: ToolRegistry;
+  readonly safetyGate: SafetyGate;
+  readonly backupManager: BackupManager;
+  readonly onConfirmDangerousTool: (toolCall: ToolCall, reason: string) => Promise<boolean>;
   private systemPrompt: string;
+  private modelAlias: ModelAlias = 'fast';
   private projectMemory: ProjectMemoryManager;
   private skills: Skill[] = [];
-  private skillsLoaded = false;
   private pinnedSkills: Set<string>;
   private mutedSkills: Set<string>;
-  private lastTurnMetrics: TurnMetrics | null = null;
-  private cachedActiveSkills: Skill[] | null = null;
-  private readonly planInjectionHeader: string;
-  private readonly skillInjectionHeader: string;
 
   constructor(options: AgentOptions) {
     this.config = options.config;
@@ -46,326 +39,191 @@ export class AgentOrchestrator {
     this.backupManager = options.backupManager;
     this.onConfirmDangerousTool = options.onConfirmDangerousTool;
     this.projectMemory = new ProjectMemoryManager(this.config);
-    
-    const { platform, shellHint } = detectHostEnvironment();
-    
-    let basePrompt = options.systemPrompt || readPromptSync('agent_system.txt');
-    try {
-      const askUserGuidance = readPromptSync('ask_user_guidance.txt');
-      basePrompt += `\n\n${askUserGuidance}`;
-    } catch {
-      // Ignored
-    }
-    
-    this.systemPrompt = basePrompt + `\n\nHost: ${platform} — ${shellHint}`;
-
     this.pinnedSkills = options.pinnedSkills ?? new Set();
     this.mutedSkills = options.mutedSkills ?? new Set();
-    this.planInjectionHeader = readTemplateSync('plan_injection_header.txt');
-    this.skillInjectionHeader = readTemplateSync('manual_skill_header.txt');
+    this.systemPrompt = buildSystemPrompt(options.systemPrompt);
   }
 
-  public resetSessionState(): void {
-    this.lastTurnMetrics = null;
-    this.cachedActiveSkills = null;
+  setModel(alias: ModelAlias): void {
+    this.modelAlias = alias;
   }
 
-  private async ensureSkillsLoaded(): Promise<void> {
-    if (this.skillsLoaded) return;
-    const loader = new SkillLoader();
-    this.skills = await loader.loadSkills();
-    this.skillsLoaded = true;
-  }
-
-  private async loadActivePlans(): Promise<{ name: string; content: string }[]> {
-    const plansDir = path.join(process.cwd(), '.agent', 'plans');
-    const activePlans: { name: string; content: string }[] = [];
-    try {
-      const files = await fs.readdir(plansDir, { withFileTypes: true });
-      for (const file of files) {
-        if (file.isFile() && file.name.endsWith('.md')) {
-          const planPath = path.join(plansDir, file.name);
-          const content = await fs.readFile(planPath, 'utf-8');
-          activePlans.push({ name: file.name.replace(/\.md$/, ''), content });
-        }
-      }
-    } catch {
-      // Ignore missing plans folder
-    }
-    return activePlans;
-  }
-
-  private preparePromptMessages(messages: ConversationMessage[]): ConversationMessage[] {
-    if (!this.lastTurnMetrics) return messages;
-    const calibrationNote = buildCalibrationNote(this.lastTurnMetrics);
-    if (!calibrationNote) return messages;
-    
-    const activeMessages = [...messages];
-    const lastUserIdx = activeMessages.map((m) => m.role).lastIndexOf('user');
-    if (lastUserIdx === -1) return messages;
-
-    const originalMsg = activeMessages[lastUserIdx];
-    const clonedMsg = { ...originalMsg };
-    if (typeof clonedMsg.content === 'string') {
-      clonedMsg.content = calibrationNote + '\n' + clonedMsg.content;
-    } else if (Array.isArray(clonedMsg.content)) {
-      const contentCopy = [...clonedMsg.content];
-      const firstText = contentCopy.find((b) => b.type === 'text');
-      if (firstText && firstText.type === 'text') {
-        const idx = contentCopy.indexOf(firstText);
-        contentCopy[idx] = {
-          type: 'text',
-          text: calibrationNote + '\n' + firstText.text,
-        };
-      } else {
-        contentCopy.unshift({
-          type: 'text',
-          text: calibrationNote,
-        });
-      }
-      clonedMsg.content = contentCopy;
-    }
-    activeMessages[lastUserIdx] = clonedMsg;
-    return activeMessages;
-  }
-
-  private buildActiveSystemPrompt(
-    projectMemoryText: string,
-    activePlans: { name: string; content: string }[],
-    matchedSkills: Skill[]
-  ): string {
-    let activeSystemPrompt = this.systemPrompt;
-    if (projectMemoryText) {
-      activeSystemPrompt +=
-        '\n\n' +
-        '## Historical Project Decisions (Project Memory)\n' +
-        'The following is a prose log of past decisions and context for this project. ' +
-        'Keep these decisions in mind and ensure your choices do not conflict with them:\n' +
-        projectMemoryText;
+  async runTurn(messages: ConversationMessage[], onProgress?: ProgressCallback): Promise<ConversationMessage[]> {
+    if (this.skills.length === 0) {
+      this.skills = await new SkillLoader().loadSkills();
     }
 
-    if (activePlans.length > 0) {
-      activeSystemPrompt +=
-        '\n\n' +
-        this.planInjectionHeader +
-        '\n\n' +
-        activePlans
-          .map((p) => `### Plan File: ".agent/plans/${p.name}.md"\n${p.content}`)
-          .join('\n\n');
-    }
+    const taskText = extractTaskText(messages);
+    const matchedSkills = await matchSkills(taskText, this.skills, this.config, this.pinnedSkills, this.mutedSkills);
+    const memoryText = await this.projectMemory.loadMemory();
+    const activePlans = await loadActivePlans();
+    const systemPrompt = injectContext(this.systemPrompt, memoryText, activePlans, matchedSkills);
 
-    if (matchedSkills.length > 0) {
-      activeSystemPrompt +=
-        '\n\n' +
-        this.skillInjectionHeader +
-        '\n\n' +
-        matchedSkills.map((s) => `## Skill: ${s.name}\n${s.content}`).join('\n\n');
-    }
-    return activeSystemPrompt;
-  }
-
-  private async executeSingleToolCall(toolCall: ToolCall, onProgress?: ProgressCallback): Promise<{ output: string; isError: boolean }> {
-    let output: string;
-    let isError = false;
-
-    const safetyCheck = this.safetyGate.classifyToolCall(toolCall.name, toolCall.input);
-    onProgress?.({
-      type: 'flow_event',
-      label: 'tool_classify',
-      detail: `${toolCall.name} → ${safetyCheck.classification}` +
-        (safetyCheck.reason ? ` (${safetyCheck.reason.slice(0, 60)})` : ''),
-    });
-
-    if (safetyCheck.classification === 'dangerous') {
-      const reason = safetyCheck.reason || 'Manual confirmation required';
-      const confirmed = await this.onConfirmDangerousTool(toolCall, reason);
-
-      if (!confirmed) {
-        output = `Error: Safety Blocked. Execution of "${toolCall.name}" rejected by the developer.`;
-        isError = true;
-      } else {
-        try {
-          output = await this.registry.executeTool(toolCall.name, toolCall.input);
-        } catch (err: any) {
-          output = `Error executing tool: ${err.message}`;
-          isError = true;
-        }
-      }
-    } else {
-      if (safetyCheck.classification === 'write' && typeof toolCall.input?.path === 'string') {
-        await this.backupManager.createBackup(toolCall.input.path);
-      }
-
-      try {
-        output = await this.registry.executeTool(toolCall.name, toolCall.input);
-      } catch (err: any) {
-        output = `Error executing tool: ${err.message}`;
-        isError = true;
-      }
-    }
-
-    return { output, isError };
-  }
-
-  public routeModelAlias(messages: ConversationMessage[], hasActivePlans: boolean): ModelAlias {
-    return routeModelAlias(messages, hasActivePlans);
-  }
-
-  async runTurn(messages: ConversationMessage[], onProgress?: ProgressCallback, isRecursive = false): Promise<ConversationMessage[]> {
     const availableTools = this.registry.getToolDefinitions();
-
-    await this.ensureSkillsLoaded();
-    const projectMemoryText = await this.projectMemory.loadMemory();
-    const activePlans = await this.loadActivePlans();
-
-    const initialUserMessage = messages.find((m) => m.role === 'user');
-    let taskDescription = '';
-    if (initialUserMessage) {
-      if (typeof initialUserMessage.content === 'string') {
-        taskDescription = initialUserMessage.content;
-      } else if (Array.isArray(initialUserMessage.content)) {
-        taskDescription = initialUserMessage.content.map((b) => (b.type === 'text' ? b.text : '')).join(' ');
-      }
-    }
-
-    const matchStart = Date.now();
-    if (!isRecursive) {
-      this.cachedActiveSkills = null;
-    }
-
-    if (!this.cachedActiveSkills) {
-      const matcher = new SkillMatcher(this.config);
-      let matchedSkills = await matcher.matchSkills(taskDescription, this.skills);
-
-      matchedSkills = matchedSkills.filter((s) => !this.mutedSkills.has(s.name));
-      for (const pinnedName of this.pinnedSkills) {
-        if (!matchedSkills.find((s) => s.name === pinnedName)) {
-          const pinned = this.skills.find((s) => s.name === pinnedName);
-          if (pinned) matchedSkills.push(pinned);
-        }
-      }
-      this.cachedActiveSkills = matchedSkills;
-
-      if (!isRecursive) {
-        const pinMuteSummary = [
-          this.pinnedSkills.size > 0 ? `+pinned:${[...this.pinnedSkills].join(',')}` : '',
-          this.mutedSkills.size > 0 ? `-muted:${[...this.mutedSkills].join(',')}` : '',
-        ].filter(Boolean).join(' ');
-
-        onProgress?.({
-          type: 'flow_event',
-          label: 'skill_match',
-          detail: `${this.skills.length} skills evaluated → ${matchedSkills.length} active` +
-            (matchedSkills.length > 0 ? ` [${matchedSkills.map((s) => s.name).join(', ')}]` : '') +
-            (pinMuteSummary ? ` ${pinMuteSummary}` : ''),
-          durationMs: Date.now() - matchStart,
-        });
-      }
-    }
-
-    const matchedSkills = this.cachedActiveSkills;
-    const activeSystemPrompt = this.buildActiveSystemPrompt(projectMemoryText, activePlans, matchedSkills);
-
-    const resolvedAlias = routeModelAlias(messages, activePlans.length > 0);
-    const provider = getProviderForAlias(resolvedAlias, this.config);
-    const resolvedModelId = this.config.modelAliases[resolvedAlias]?.modelId ?? 'claude-3-5-sonnet-20241022';
-
-    onProgress?.({
-      type: 'flow_event',
-      label: 'model_route',
-      detail: `→ ${resolvedAlias} (${resolvedModelId})`,
-    });
-
-    const activeMessages = this.preparePromptMessages(messages);
+    const provider = getProviderForAlias(this.modelAlias, this.config);
+    const modelId = this.config.modelAliases[this.modelAlias]?.modelId ?? 'claude-3-5-sonnet-20241022';
 
     onProgress?.({ type: 'request_start' });
-    let result;
-    const modelStartMs = Date.now();
-    try {
-      result = await provider.complete({
-        systemPrompt: activeSystemPrompt,
-        messages: activeMessages,
-        availableTools,
-        modelAlias: resolvedAlias,
-      });
-    } finally {
-      onProgress?.({ type: 'request_end' });
-    }
-    const modelLatencyMs = Date.now() - modelStartMs;
+    const modelStart = Date.now();
+    const result = await provider.complete({
+      systemPrompt,
+      messages,
+      availableTools,
+      modelAlias: this.modelAlias,
+    });
+    onProgress?.({ type: 'request_end' });
+    const modelLatencyMs = Date.now() - modelStart;
 
-    const budgetMatch = result.textContent ? result.textContent.match(/^\s*\[budget:\s*(.+?)\]/i) : null;
-    const declaredBudget = budgetMatch ? budgetMatch[1].trim() : null;
-
-    this.lastTurnMetrics = {
-      declaredBudget,
-      actualOutputTokens: result.tokenUsage.outputTokens,
-    };
-
-    await logTokenUsage(resolvedModelId, result.tokenUsage.inputTokens, result.tokenUsage.outputTokens);
-
-    if (result.thinkingContent && onProgress) {
-      onProgress({ type: 'thinking', content: result.thinkingContent });
-    }
-
-    if (onProgress) {
-      onProgress({
-        type: 'stats',
-        stats: {
-          modelId: resolvedModelId,
-          inputTokens: result.tokenUsage.inputTokens,
-          outputTokens: result.tokenUsage.outputTokens,
-          modelLatencyMs,
-          toolExecutionLatencyMs: 0,
-          cacheHit: result.cacheHit,
-          thinkingContent: result.thinkingContent,
-          declaredBudget,
-        },
-      });
-    }
+    await logTokenUsage(modelId, result.tokenUsage.inputTokens, result.tokenUsage.outputTokens);
 
     const conversation = [...messages];
     const assistantContent: MessageContentBlock[] = [];
     if (result.textContent) {
       assistantContent.push({ type: 'text', text: result.textContent });
-      onProgress?.({ type: 'text', content: result.textContent });
     }
-
-    if (result.requestedToolCalls.length > 0) {
-      for (const call of result.requestedToolCalls) {
-        assistantContent.push({
-          type: 'tool_use',
-          id: call.id,
-          name: call.name,
-          input: call.input,
-        });
-      }
+    for (const call of result.requestedToolCalls) {
+      assistantContent.push({ type: 'tool_use', id: call.id, name: call.name, input: call.input });
     }
-
     conversation.push({ role: 'assistant', content: assistantContent });
 
-    if (result.requestedToolCalls.length === 0) {
-      return conversation;
-    }
+    if (result.thinkingContent) onProgress?.({ type: 'thinking', content: result.thinkingContent });
+    if (result.textContent) onProgress?.({ type: 'text', content: result.textContent });
+    onProgress?.({
+      type: 'stats',
+      stats: { modelId, inputTokens: result.tokenUsage.inputTokens, outputTokens: result.tokenUsage.outputTokens, modelLatencyMs, toolExecutionLatencyMs: 0 },
+    });
 
-    const toolResults: MessageContentBlock[] = [];
+    if (result.requestedToolCalls.length === 0) return conversation;
+
     let toolExecutionLatencyMs = 0;
-
+    const toolResults: MessageContentBlock[] = [];
     for (const toolCall of result.requestedToolCalls) {
       onProgress?.({ type: 'tool_start', toolCall });
-      const toolStartMs = Date.now();
-      const { output, isError } = await this.executeSingleToolCall(toolCall, onProgress);
-      toolExecutionLatencyMs += Date.now() - toolStartMs;
+      const toolStart = Date.now();
+      const { output, isError } = await executeToolCall(toolCall, this.safetyGate, this.registry, this.backupManager, this.onConfirmDangerousTool);
+      toolExecutionLatencyMs += Date.now() - toolStart;
       onProgress?.({ type: 'tool_end', toolCall, result: output });
-
-      toolResults.push({
-        type: 'tool_result',
-        toolUseId: toolCall.id,
-        content: output,
-        isError,
-      });
+      toolResults.push({ type: 'tool_result', toolUseId: toolCall.id, content: output, isError });
     }
-
     conversation.push({ role: 'user', content: toolResults });
-    return this.runTurn(conversation, onProgress, true);
+
+    return this.runTurn(conversation, onProgress);
+  }
+}
+
+function buildSystemPrompt(userPrompt: string | undefined): string {
+  const platform = process.platform;
+  const shellHint = platform === 'win32'
+    ? 'Windows — use cmd-compatible commands (dir, del, if exist) or explicit `powershell -Command "..."` for anything else'
+    : 'POSIX — use standard Unix commands (ls, rm, &&)';
+
+  let prompt = userPrompt || readPromptSync('agent_system.txt');
+  try {
+    prompt += `\n\n${readPromptSync('ask_user_guidance.txt')}`;
+  } catch { /* no guidance file */ }
+  return `${prompt}\n\nHost: ${platform} \u2014 ${shellHint}`;
+}
+
+function extractTaskText(messages: ConversationMessage[]): string {
+  const userMsg = [...messages].reverse().find(m => m.role === 'user');
+  if (!userMsg) return '';
+  if (typeof userMsg.content === 'string') return userMsg.content;
+  if (Array.isArray(userMsg.content)) {
+    return userMsg.content.map(b => b.type === 'text' ? b.text : '').join(' ');
+  }
+  return '';
+}
+
+async function matchSkills(
+  taskText: string,
+  skills: Skill[],
+  config: AppConfig,
+  pinnedSkills: Set<string>,
+  mutedSkills: Set<string>,
+): Promise<Skill[]> {
+  const matcher = new SkillMatcher(config);
+  let matched = await matcher.matchSkills(taskText, skills);
+  matched = matched.filter(s => !mutedSkills.has(s.name));
+  for (const pinned of pinnedSkills) {
+    if (!matched.find(s => s.name === pinned)) {
+      const skill = skills.find(s => s.name === pinned);
+      if (skill) matched.push(skill);
+    }
+  }
+  return matched;
+}
+
+async function loadActivePlans(): Promise<{ name: string; content: string }[]> {
+  const plansDir = path.join(process.cwd(), '.agent', 'plans');
+  try {
+    const files = await fs.readdir(plansDir, { withFileTypes: true });
+    const result: { name: string; content: string }[] = [];
+    for (const file of files) {
+      if (file.isFile() && file.name.endsWith('.md')) {
+        const content = await fs.readFile(path.join(plansDir, file.name), 'utf-8');
+        result.push({ name: file.name.replace(/\.md$/, ''), content });
+      }
+    }
+    return result;
+  } catch {
+    return [];
+  }
+}
+
+function injectContext(
+  basePrompt: string,
+  memoryText: string,
+  activePlans: { name: string; content: string }[],
+  matchedSkills: Skill[],
+): string {
+  let prompt = basePrompt;
+
+  if (memoryText) {
+    prompt += `\n\n## Historical Project Decisions (Project Memory)\n${memoryText}`;
+  }
+
+  if (activePlans.length > 0) {
+    const header = readTemplateSync('plan_injection_header.txt');
+    prompt += `\n\n${header}\n\n`;
+    for (const plan of activePlans) {
+      prompt += `### Plan File: ".agent/plans/${plan.name}.md"\n${plan.content}\n\n`;
+    }
+  }
+
+  if (matchedSkills.length > 0) {
+    const header = readTemplateSync('manual_skill_header.txt');
+    prompt += `\n\n${header}\n\n`;
+    for (const skill of matchedSkills) {
+      prompt += `## Skill: ${skill.name}\n${skill.content}\n\n`;
+    }
+  }
+
+  return prompt;
+}
+
+async function executeToolCall(
+  toolCall: ToolCall,
+  safetyGate: SafetyGate,
+  registry: ToolRegistry,
+  backupManager: BackupManager,
+  onConfirmDangerousTool: (toolCall: ToolCall, reason: string) => Promise<boolean>,
+): Promise<{ output: string; isError: boolean }> {
+  const { classification, reason } = safetyGate.classifyToolCall(toolCall.name, toolCall.input);
+
+  if (classification === 'dangerous') {
+    const confirmed = await onConfirmDangerousTool(toolCall, reason || 'Manual confirmation required');
+    if (!confirmed) {
+      return { output: `Error: Safety Blocked. Execution of "${toolCall.name}" rejected by the developer.`, isError: true };
+    }
+  }
+
+  if (classification === 'write' && typeof toolCall.input?.path === 'string') {
+    await backupManager.createBackup(toolCall.input.path);
+  }
+
+  try {
+    return { output: await registry.executeTool(toolCall.name, toolCall.input), isError: false };
+  } catch (err: any) {
+    return { output: `Error executing tool: ${err.message}`, isError: true };
   }
 }

@@ -17,9 +17,7 @@ import { CliContext } from './context.js';
 import { onConfirmDangerousTool, saveSessionMemoryAndExit, promptUser } from './repl.js';
 import { colors } from './colors.js';
 
-/**
- * Main CLI entry point.
- */
+
 function printJustCodeASCII() {
   console.log(`
 ${colors.cyan}${colors.bold}     _             _                  _      
@@ -37,6 +35,10 @@ function printIntroduction() {
   ${colors.dim}─────────────────────────────────────────────────────────────────────${colors.reset}
 `);
 }
+
+/**
+ * Main CLI entry point.
+ */
 async function main() {
   printJustCodeASCII();
   printIntroduction();
