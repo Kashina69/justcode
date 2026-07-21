@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Maps branch -> folder(s) to preserve from main's deletion
 declare -A BRANCH_FOLDERS
 BRANCH_FOLDERS[archives]="archives"
 BRANCH_FOLDERS[docs]="docs"
@@ -14,12 +13,16 @@ for branch in "${!BRANCH_FOLDERS[@]}"; do
   git checkout "$branch"
   folders=${BRANCH_FOLDERS[$branch]}
 
-  git merge main --no-commit --no-ff
+  # Merge main: auto-resolve all conflicts in main's favor, don't commit yet
+  git merge main --strategy-option theirs --no-commit --no-ff 2>/dev/null || true
 
-  # Restore the folder(s) that main deleted — take our version
+  # Restore the folder(s) that main deleted — take our branch's version
   for f in $folders; do
-    git checkout HEAD -- "$f" 2>/dev/null || echo "  (no local $f, checking origin...)"
-    git checkout "origin/${branch}" -- "$f" 2>/dev/null || true
+    if git show HEAD:"$f" >/dev/null 2>&1; then
+      git checkout HEAD -- "$f"
+    else
+      git checkout "origin/${branch}" -- "$f"
+    fi
   done
 
   git commit -m "Sync: merge main into $branch" --allow-empty
