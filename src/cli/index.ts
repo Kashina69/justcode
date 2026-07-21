@@ -20,20 +20,26 @@ import { colors } from './colors.js';
 /**
  * Main CLI entry point.
  */
-async function main() {
+function printJustCodeASCII() {
   console.log(`
 ${colors.cyan}${colors.bold}     _             _                  _      
     | |           | |                | |     
     | |_   _  ___ | |_  ___  ___   __| | ___ 
  _  | | | | |/ __|| __|/ __|/ _ \\ / _\` |/ _ \\
 | |_| | |_| |\\__ \\| |_| (__| (_) | (_| |  __/
- \\___/ \\__,_||___/ \\__|\\___|\\___/ \\__,_|\\___|${colors.reset}
+ \\___/ \\__,_||___/ \\__|\\___|\\___/ \\__,_|\\___|${colors.reset}`)
+}
 
-  ${colors.cyan}${colors.bold}justcode${colors.reset} ${colors.dim}v0.1.0${colors.reset} • ${colors.italic}${colors.gray}Terminal-based agentic coding assistant${colors.reset}
+function printIntroduction() {
+  console.log(`  ${colors.cyan}${colors.bold}justcode${colors.reset} ${colors.dim}v0.1.0${colors.reset} • ${colors.italic}${colors.gray}Terminal-based agentic coding assistant${colors.reset}
   ${colors.dim}─────────────────────────────────────────────────────────────────────${colors.reset}
   Type ${colors.bold}${colors.cyan}/help${colors.reset} for instructions or ${colors.bold}${colors.cyan}/list${colors.reset} to view all slash commands.
   ${colors.dim}─────────────────────────────────────────────────────────────────────${colors.reset}
 `);
+}
+async function main() {
+  printJustCodeASCII();
+  printIntroduction();
 
   const context: CliContext = {
     rl: null as any,
@@ -137,7 +143,7 @@ ${colors.cyan}${colors.bold}     _             _                  _
   // Preload skill names for autocompleter
   context.skillLoader.loadSkills().then((skills) => {
     context.skillNames = skills.map((s) => s.name);
-  }).catch(() => {});
+  }).catch(() => { });
 
   const startLoop = promptUser(context);
   context.resumePrompt = startLoop;
