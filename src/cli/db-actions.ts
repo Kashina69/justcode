@@ -140,7 +140,7 @@ ${dbMemoryText || 'No memory nodes recorded yet.'}
     const orchestratorOptions = {
       config: (context.orchestrator as any).config,
       registry: (context.orchestrator as any).registry,
-      safetyGate: (context.orchestrator as any).safetyGate,
+      projectRoot: process.cwd(),
       backupManager: (context.orchestrator as any).backupManager,
       onConfirmDangerousTool: (context.orchestrator as any).onConfirmDangerousTool,
       systemPrompt,

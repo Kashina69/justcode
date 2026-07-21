@@ -1,73 +1,36 @@
 import fs from 'fs/promises';
-import fsSync from 'fs';
 import path from 'path';
-// @ts-ignore
-import { glob } from 'fs/promises';
-import { fileURLToPath } from 'url';
 import { Skill } from './types.js';
-import { parseSkillFile } from './parser.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-let installDir = path.resolve(__dirname, '..', '..');
-if (!fsSync.existsSync(path.join(installDir, 'skills'))) {
-  installDir = path.resolve(__dirname, '..', '..', '..');
-}
-
-export class SkillLoader {
-  private projectRoot: string;
-
-  /**
-   * Initializes the SkillLoader under the target project root.
-   * 
-   * @param projectRoot Target project directory, defaults to current working directory.
-   */
-  constructor(projectRoot: string = process.cwd()) {
-    this.projectRoot = path.resolve(projectRoot);
-  }
-
-  /**
-   * Recursively reads built-in and project-specific skill markdown files,
-   * parses them, and returns the loaded list.
-   * 
-   * @returns A promise resolving to an array of loaded Skill objects.
-   */
-  async loadSkills(): Promise<Skill[]> {
-    const loadedSkills: Skill[] = [];
-    const patterns: string[] = [];
-    if (!process.env.VITEST) {
-      patterns.push(path.join(installDir, 'skills', '**', '*.md'));
-    }
-    if (process.env.VITEST || path.resolve(installDir) !== path.resolve(this.projectRoot)) {
-      patterns.push(
-        path.join(this.projectRoot, 'skills', '**', '*.md'),
-        path.join(this.projectRoot, '.agent', 'skills', '**', '*.md')
-      );
-    } else {
-      patterns.push(
-        path.join(this.projectRoot, '.agent', 'skills', '**', '*.md')
-      );
-    }
-
-    for (const pattern of patterns) {
-      try {
-        // Native glob generator in Node.js 22+
-        for await (const entry of glob(pattern)) {
-          try {
-            const rawContent = await fs.readFile(entry, 'utf-8');
-            const skill = parseSkillFile(rawContent);
-            if (skill) {
-              loadedSkills.push(skill);
-            }
-          } catch (err) {
-            // Skip un-parseable or un-readable files
+export async function loadSkills(skillsDir?: string): Promise<Skill[]> {
+  const dir = skillsDir || path.join(process.cwd(), 'skills');
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const skills: Skill[] = [];
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const skillFile = path.join(dir, entry.name, 'SKILL.md');
+        try {
+          const raw = await fs.readFile(skillFile, 'utf-8');
+          const content = stripFrontmatter(raw);
+          if (content.trim()) {
+            skills.push({ name: entry.name, content });
           }
-        }
-      } catch (err) {
-        // Ignore folder path check errors
+        } catch { /* no SKILL.md in this dir */ }
       }
     }
-
-    return loadedSkills;
+    return skills;
+  } catch {
+    return [];
   }
+}
+
+export function stripFrontmatter(text: string): string {
+  if (text.startsWith('---')) {
+    const end = text.indexOf('---', 3);
+    if (end !== -1) {
+      return text.slice(end + 3).trim();
+    }
+  }
+  return text.trim();
 }

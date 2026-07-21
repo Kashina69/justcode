@@ -1,6 +1,7 @@
 import { colors } from './colors.js';
 import { selectOption } from './select-option.js';
 import { CliContext } from './context.js';
+import { loadSessionData, loadSessionHistory } from '../memory/session.js';
 
 /**
  * Loads conversation messages and resumes state for a specific session ID.
@@ -10,7 +11,7 @@ import { CliContext } from './context.js';
  */
 export const resumeSessionById = async (context: CliContext, targetId: string) => {
   try {
-    const data = await context.sessionManager.loadSessionData();
+    const data = await loadSessionData();
     const targetSession = data.sessions.find((s) => s.id === targetId);
     if (!targetSession) {
       console.log(`Error: Could not find session with ID "${targetId}" in project history.`);
@@ -21,10 +22,9 @@ export const resumeSessionById = async (context: CliContext, targetId: string) =
       context.spinner.stop();
     }
 
-    context.conversationHistory = await context.sessionManager.loadSessionHistory(targetId);
+    context.conversationHistory = await loadSessionHistory(targetId);
     context.sessionId = targetId;
     context.sessionCost = targetSession.costUsd;
-    context.orchestrator.resetSessionState();
 
     console.log(`${colors.green}✅ Session "${targetId}" successfully resumed.${colors.reset}`);
     console.log(`   Restored ${context.conversationHistory.length} messages. Cumulative cost: $${context.sessionCost.toFixed(6)} USD.`);
@@ -41,7 +41,7 @@ export const resumeSessionById = async (context: CliContext, targetId: string) =
  */
 export const handleSessionsMenu = async (context: CliContext, resumePrompt: () => void) => {
   try {
-    const data = await context.sessionManager.loadSessionData();
+    const data = await loadSessionData();
     console.log('\n📊 Project Global Session Stats:');
     console.log(`  Total Project Input Tokens:   ${data.projectStats.totalInputTokens.toLocaleString()}`);
     console.log(`  Total Project Output Tokens:  ${data.projectStats.totalOutputTokens.toLocaleString()}`);

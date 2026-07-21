@@ -3,12 +3,9 @@ import readline from 'readline';
 import { loadAppConfig } from '../config/index.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { AgentOrchestrator } from '../agent/index.js';
-import { SafetyGate } from '../safety/gate.js';
 import { BackupManager } from '../safety/backup.js';
-import { ProjectMemoryManager } from '../memory/project.js';
 import { PlanningManager } from '../planning/planner.js';
-import { SkillLoader } from '../skills/loader.js';
-import { SessionManager } from '../memory/session.js';
+import { loadSkills } from '../skills/loader.js';
 import { buildIgnoreFilter } from './gitignore-filter.js';
 import { runOnboarding } from './onboarding.js';
 import { buildCompleter } from './autocomplete.js';
@@ -46,11 +43,8 @@ async function main() {
   const context: CliContext = {
     rl: null as any,
     orchestrator: null as any,
-    sessionManager: new SessionManager(),
     spinner: new CliSpinner(),
     backupManager: new BackupManager(),
-    skillLoader: new SkillLoader(),
-    projectMemory: null as any,
     planningManager: null as any,
     conversationHistory: [],
     sessionId: String(Date.now()),
@@ -110,13 +104,11 @@ async function main() {
 
   // Initialize remaining components
   const registry = new ToolRegistry();
-  const safetyGate = new SafetyGate();
-  context.projectMemory = new ProjectMemoryManager(config);
   context.planningManager = new PlanningManager(config);
   context.orchestrator = new AgentOrchestrator({
     config,
     registry,
-    safetyGate,
+    projectRoot: process.cwd(),
     backupManager: context.backupManager,
     onConfirmDangerousTool: onConfirmDangerousTool(context),
     pinnedSkills: context.pinnedSkills,
@@ -143,7 +135,7 @@ async function main() {
   });
 
   // Preload skill names for autocompleter
-  context.skillLoader.loadSkills().then((skills) => {
+  loadSkills().then((skills) => {
     context.skillNames = skills.map((s) => s.name);
   }).catch(() => { });
 

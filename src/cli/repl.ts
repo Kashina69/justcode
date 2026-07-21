@@ -3,6 +3,8 @@ import { colors } from './colors.js';
 import { CliContext } from './context.js';
 import { estimateCost } from './cost.js';
 import { SessionLogger } from '../memory/logger.js';
+import { createSessionSummary, saveSessionSummary, appendMemory } from '../memory/project.js';
+import { updateStats, updateSessionSummary, saveSessionHistory } from '../memory/session.js';
 import { BashTool } from '../tools/bash/index.js';
 import { handleCommand } from './command-dispatcher.js';
 import { COLLAPSE_THRESHOLD } from './constants.js';
@@ -52,11 +54,11 @@ export const saveSessionMemoryAndExit = async (context: CliContext) => {
   if (context.conversationHistory.length > 0) {
     console.log('\n💾 Summarizing session and updating project memory...');
     try {
-      const summary = await context.projectMemory.createSessionSummary(context.conversationHistory);
-      await context.projectMemory.saveSessionSummary(summary);
-      await context.projectMemory.appendMemory(summary);
-      await context.sessionManager.updateSessionSummary(context.sessionId, summary);
-      await context.sessionManager.saveSessionHistory(context.sessionId, context.conversationHistory);
+      const summary = await createSessionSummary(context.conversationHistory, context.orchestrator.config);
+      await saveSessionSummary(summary);
+      await appendMemory(summary);
+      await updateSessionSummary(context.sessionId, summary);
+      await saveSessionHistory(context.sessionId, context.conversationHistory);
       console.log(
         '✅ Session summary saved to .agent/sessions/ and appended to .agent/memory.md.'
       );
@@ -213,18 +215,6 @@ export const promptUser = (context: CliContext) => {
               if (context.spinner.active()) {
                 context.spinner.stop();
               }
-            } else if (progress.type === 'flow_event') {
-              if (context.debugMode) {
-                if (context.spinner.active()) context.spinner.stop();
-                const dur = progress.durationMs != null
-                  ? ` ${colors.dim}(${progress.durationMs}ms)${colors.reset}`
-                  : '';
-                const label = (progress.label ?? '').padEnd(14);
-                console.log(
-                  `  ${colors.gray}›${colors.reset} ${colors.dim}${label}${colors.reset} ` +
-                  `${colors.gray}${progress.detail ?? ''}${colors.reset}${dur}`
-                );
-              }
             } else if (progress.type === 'tool_start' && progress.toolCall) {
               if (context.spinner.active()) {
                 context.spinner.stop();
@@ -275,23 +265,21 @@ export const promptUser = (context: CliContext) => {
               const speed = stats.modelLatencyMs && stats.modelLatencyMs > 0 && stats.outputTokens > 0
                 ? (stats.outputTokens / (stats.modelLatencyMs / 1000)).toFixed(1)
                 : 'N/A';
-              const cacheStatus = stats.cacheHit ? `${colors.green}HIT${colors.reset}` : `${colors.yellow}MISS${colors.reset}`;
-              const cacheStatusRaw = stats.cacheHit ? 'HIT' : 'MISS';
-              const estimatedCost = estimateCost(stats.modelId, stats.inputTokens, stats.outputTokens, stats.cacheHit);
+              const cacheStatus = `${colors.yellow}MISS${colors.reset}`;
+              const cacheStatusRaw = 'MISS';
+              const estimatedCost = estimateCost(stats.modelId, stats.inputTokens, stats.outputTokens, false);
               context.sessionCost += estimatedCost;
-              context.sessionManager.updateStats(context.sessionId, stats.inputTokens, stats.outputTokens, estimatedCost).catch(() => {});
+              updateStats(context.sessionId, stats.inputTokens, stats.outputTokens, estimatedCost).catch(() => {});
 
               const toolLatencyNote = toolSec ? ` | Tool Time: ${toolSec}s` : '';
-              const budgetNote = stats.declaredBudget ? ` | Budget: ~${stats.declaredBudget} (used ${stats.outputTokens})` : '';
-              const cleanStatsMsg = `API stats: Model: ${stats.modelId} | Model Latency: ${modelSec}s${toolLatencyNote}${budgetNote} | Speed: ${speed} t/s | Input: ${stats.inputTokens} | Output: ${stats.outputTokens} | Cache Hit: ${cacheStatusRaw} | Cost: $${estimatedCost.toFixed(6)} USD`;
+              const cleanStatsMsg = `API stats: Model: ${stats.modelId} | Model Latency: ${modelSec}s${toolLatencyNote} | Speed: ${speed} t/s | Input: ${stats.inputTokens} | Output: ${stats.outputTokens} | Cache Hit: ${cacheStatusRaw} | Cost: $${estimatedCost.toFixed(6)} USD`;
               SessionLogger.getInstance().logSystem(cleanStatsMsg);
 
               const toolLatencyDisplay = toolSec ? ` | Tool: ${colors.yellow}${toolSec}s${colors.reset}` : '';
-              const budgetDisplay = stats.declaredBudget ? ` | Budget: ~${colors.bold}${stats.declaredBudget}${colors.reset} (used ${colors.bold}${stats.outputTokens}${colors.reset})` : '';
               console.log(
                 `\n📊 ${colors.bold}Metrics: ${colors.reset}` +
                 `[${colors.cyan}${stats.modelId}${colors.reset}] | ` +
-                `Model: ${colors.yellow}${modelSec}s${colors.reset}${toolLatencyDisplay}${budgetDisplay} | ` +
+                `Model: ${colors.yellow}${modelSec}s${colors.reset}${toolLatencyDisplay} | ` +
                 `Speed: ${colors.yellow}${speed} t/s${colors.reset} | ` +
                 `Tokens: ${colors.bold}${stats.inputTokens}${colors.reset} in, ${colors.bold}${stats.outputTokens}${colors.reset} out | ` +
                 `Cache: ${cacheStatus} | ` +

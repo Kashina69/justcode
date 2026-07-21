@@ -1,13 +1,12 @@
 import { ToolCall } from '../providers/types.js';
 import { ToolRegistry } from '../tools/registry.js';
-import { SafetyGate } from '../safety/gate.js';
 import { BackupManager } from '../safety/backup.js';
 import { AppConfig } from '../config/index.js';
 
 export interface AgentOptions {
   config: AppConfig;
   registry: ToolRegistry;
-  safetyGate: SafetyGate;
+  projectRoot: string;
   backupManager: BackupManager;
   onConfirmDangerousTool: (toolCall: ToolCall, reason: string) => Promise<boolean>;
   systemPrompt?: string;

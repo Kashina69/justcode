@@ -7,27 +7,26 @@ import {
   ModelAlias,
 } from '../providers/types.js';
 import { ToolRegistry } from '../tools/registry.js';
-import { SafetyGate } from '../safety/gate.js';
 import { BackupManager } from '../safety/backup.js';
 import { getProviderForAlias } from '../providers/factory.js';
 import { AppConfig } from '../config/index.js';
-import { SkillLoader } from '../skills/loader.js';
-import { SkillMatcher } from '../skills/matcher.js';
+import { loadSkills } from '../skills/loader.js';
+import { matchSkills as matchSkillsDeterministic } from '../skills/matcher.js';
 import { Skill } from '../skills/types.js';
 import { logTokenUsage } from '../memory/global.js';
-import { ProjectMemoryManager } from '../memory/project.js';
+import { loadMemory } from '../memory/project.js';
 import { readPromptSync, readTemplateSync } from '../config/prompts.js';
+import { classifyToolCall } from '../safety/gate.js';
 import { AgentOptions, ProgressCallback } from './types.js';
 
 export class AgentOrchestrator {
   readonly config: AppConfig;
   readonly registry: ToolRegistry;
-  readonly safetyGate: SafetyGate;
+  readonly projectRoot: string;
   readonly backupManager: BackupManager;
   readonly onConfirmDangerousTool: (toolCall: ToolCall, reason: string) => Promise<boolean>;
   private systemPrompt: string;
   private modelAlias: ModelAlias = 'fast';
-  private projectMemory: ProjectMemoryManager;
   private skills: Skill[] = [];
   private pinnedSkills: Set<string>;
   private mutedSkills: Set<string>;
@@ -35,10 +34,9 @@ export class AgentOrchestrator {
   constructor(options: AgentOptions) {
     this.config = options.config;
     this.registry = options.registry;
-    this.safetyGate = options.safetyGate;
+    this.projectRoot = options.projectRoot;
     this.backupManager = options.backupManager;
     this.onConfirmDangerousTool = options.onConfirmDangerousTool;
-    this.projectMemory = new ProjectMemoryManager(this.config);
     this.pinnedSkills = options.pinnedSkills ?? new Set();
     this.mutedSkills = options.mutedSkills ?? new Set();
     this.systemPrompt = buildSystemPrompt(options.systemPrompt);
@@ -50,12 +48,18 @@ export class AgentOrchestrator {
 
   async runTurn(messages: ConversationMessage[], onProgress?: ProgressCallback): Promise<ConversationMessage[]> {
     if (this.skills.length === 0) {
-      this.skills = await new SkillLoader().loadSkills();
+      this.skills = await loadSkills(path.join(process.cwd(), 'skills'));
     }
 
-    const taskText = extractTaskText(messages);
-    const matchedSkills = await matchSkills(taskText, this.skills, this.config, this.pinnedSkills, this.mutedSkills);
-    const memoryText = await this.projectMemory.loadMemory();
+    let matchedSkills = matchSkillsDeterministic(this.skills);
+    matchedSkills = matchedSkills.filter(s => !this.mutedSkills.has(s.name));
+    for (const pinned of this.pinnedSkills) {
+      if (!matchedSkills.find(s => s.name === pinned)) {
+        const skill = this.skills.find(s => s.name === pinned);
+        if (skill) matchedSkills.push(skill);
+      }
+    }
+    const memoryText = await loadMemory(this.projectRoot);
     const activePlans = await loadActivePlans();
     const systemPrompt = injectContext(this.systemPrompt, memoryText, activePlans, matchedSkills);
 
@@ -100,7 +104,7 @@ export class AgentOrchestrator {
     for (const toolCall of result.requestedToolCalls) {
       onProgress?.({ type: 'tool_start', toolCall });
       const toolStart = Date.now();
-      const { output, isError } = await executeToolCall(toolCall, this.safetyGate, this.registry, this.backupManager, this.onConfirmDangerousTool);
+      const { output, isError } = await executeToolCall(toolCall, this.registry, this.backupManager, this.onConfirmDangerousTool);
       toolExecutionLatencyMs += Date.now() - toolStart;
       onProgress?.({ type: 'tool_end', toolCall, result: output });
       toolResults.push({ type: 'tool_result', toolUseId: toolCall.id, content: output, isError });
@@ -122,35 +126,6 @@ function buildSystemPrompt(userPrompt: string | undefined): string {
     prompt += `\n\n${readPromptSync('ask_user_guidance.txt')}`;
   } catch { /* no guidance file */ }
   return `${prompt}\n\nHost: ${platform} \u2014 ${shellHint}`;
-}
-
-function extractTaskText(messages: ConversationMessage[]): string {
-  const userMsg = [...messages].reverse().find(m => m.role === 'user');
-  if (!userMsg) return '';
-  if (typeof userMsg.content === 'string') return userMsg.content;
-  if (Array.isArray(userMsg.content)) {
-    return userMsg.content.map(b => b.type === 'text' ? b.text : '').join(' ');
-  }
-  return '';
-}
-
-async function matchSkills(
-  taskText: string,
-  skills: Skill[],
-  config: AppConfig,
-  pinnedSkills: Set<string>,
-  mutedSkills: Set<string>,
-): Promise<Skill[]> {
-  const matcher = new SkillMatcher(config);
-  let matched = await matcher.matchSkills(taskText, skills);
-  matched = matched.filter(s => !mutedSkills.has(s.name));
-  for (const pinned of pinnedSkills) {
-    if (!matched.find(s => s.name === pinned)) {
-      const skill = skills.find(s => s.name === pinned);
-      if (skill) matched.push(skill);
-    }
-  }
-  return matched;
 }
 
 async function loadActivePlans(): Promise<{ name: string; content: string }[]> {
@@ -203,12 +178,11 @@ function injectContext(
 
 async function executeToolCall(
   toolCall: ToolCall,
-  safetyGate: SafetyGate,
   registry: ToolRegistry,
   backupManager: BackupManager,
   onConfirmDangerousTool: (toolCall: ToolCall, reason: string) => Promise<boolean>,
 ): Promise<{ output: string; isError: boolean }> {
-  const { classification, reason } = safetyGate.classifyToolCall(toolCall.name, toolCall.input);
+  const { classification, reason } = classifyToolCall(toolCall.name, toolCall.input);
 
   if (classification === 'dangerous') {
     const confirmed = await onConfirmDangerousTool(toolCall, reason || 'Manual confirmation required');

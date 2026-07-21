@@ -1,11 +1,13 @@
 import { colors, THEMES, saveTheme } from './colors.js';
 import { CliContext } from './context.js';
+import { loadMemory } from '../memory/project.js';
 import { printCostSummary } from './cost.js';
 import { handleModelsMenu } from './models.js';
 import { handleConfigMenu } from './config-menu.js';
 import { resumeSessionById, handleSessionsMenu } from './sessions.js';
 import { handleDbCommand } from './db-menu.js';
 import { selectOption } from './select-option.js';
+import { loadSkills } from '../skills/loader.js';
 
 /**
  * Dispatches and executes slash commands.
@@ -107,7 +109,7 @@ export const handleCommand = async (
 
   if (lowerInput === '/skills') {
     try {
-      const skills = await context.skillLoader.loadSkills();
+      const skills = await loadSkills();
       context.skillNames = skills.map((s) => s.name);
       console.log('\n💡 Available Skills:');
       if (skills.length === 0) {
@@ -117,7 +119,6 @@ export const handleCommand = async (
           const pinned = context.pinnedSkills.has(s.name) ? ` ${colors.green}[PINNED]${colors.reset}` : '';
           const muted = context.mutedSkills.has(s.name) ? ` ${colors.red}[MUTED]${colors.reset}` : '';
           console.log(`  - ${colors.bold}${s.name}${colors.reset}${pinned}${muted}`);
-          console.log(`    ${colors.dim}${s.description}${colors.reset}`);
         });
       }
     } catch (err: any) {
@@ -178,7 +179,7 @@ export const handleCommand = async (
 
   if (lowerInput === '/memory') {
     try {
-      const memory = await context.projectMemory.loadMemory();
+      const memory = await loadMemory();
       console.log('\n📖 Project Timeline Memory (.agent/memory.md):');
       if (!memory.trim()) {
         console.log('  (empty memory file)');
