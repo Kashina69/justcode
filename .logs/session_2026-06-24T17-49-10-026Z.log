@@ -1,3 +1,0 @@
-[SYSTEM] [2026-06-24T17:49:10.027Z] Session log initiated.
-[SYSTEM] [2026-06-24T17:49:10.028Z] [Memory Recall] Query: "Fact 15" | Seeds: 1 | Included: 4 | Tokens: 100 | Truncated: false
-[SYSTEM] [2026-06-24T17:49:10.109Z] [Memory Recall] Query: "Summary Four" | Seeds: 1 | Included: 1 | Tokens: 18 | Truncated: true
