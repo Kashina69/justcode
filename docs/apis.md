@@ -1,8 +1,0 @@
-- **`/api/auth/login`**: Takes an email and password, verifies them with Supabase, checks if the user is a super admin, and returns the session credentials.
-- **`/api/auth/verify-otp`**: Verifies the standard email login verification code (OTP) to complete the login sequence.
-- **`/api/auth/verify-recovery`**: Verifies the recovery verification code (OTP) sent to a user who has forgotten their password.
-- **`/api/auth/resend-otp`**: Resends the standard login verification code to the user's email if the first one expired or was not received.
-- **`/api/auth/forgot-password`**: Triggers the password reset process by sending a password-recovery redirect link to the user's email.
-- **`/api/auth/resend-recovery`**: Resends the password-recovery redirect link to the user's email.
-- **`/api/auth/update-password`**: Updates the password for the authenticated super admin. It requires a valid authorization header.
-- **`/api/auth/session`**: Validates the authorization header and returns the user ID, email, and role to verify that the active session is still valid.
