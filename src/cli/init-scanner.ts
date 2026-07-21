@@ -162,7 +162,7 @@ export async function scanProject(root: string): Promise<ProjectProfile> {
 
   for (const f of sampleFiles) {
     try {
-      const content = await fs.readFile(path.join(root, f), 'utf-8');
+      const content = await fs.readFile(f, 'utf-8');
       const lines = content.split('\n');
       for (const line of lines) {
         if (/\bclass\s+\w+/.test(line)) classCount++;
