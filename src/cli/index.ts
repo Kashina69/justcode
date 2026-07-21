@@ -1,18 +1,17 @@
 #!/usr/bin/env node
 import readline from 'readline';
-import { loadAppConfig } from '../config/index.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { AgentOrchestrator } from '../agent/index.js';
 import { BackupManager } from '../safety/backup.js';
 import { PlanningManager } from '../planning/planner.js';
 import { loadSkills } from '../skills/loader.js';
 import { buildIgnoreFilter } from './gitignore-filter.js';
-import { runOnboarding } from './onboarding.js';
 import { buildCompleter } from './autocomplete.js';
 import { CliSpinner } from './spinner.js';
 import { CliContext } from './context.js';
 import { onConfirmDangerousTool, saveSessionMemoryAndExit, promptUser } from './repl.js';
 import { colors } from './colors.js';
+import { ensureAppConfigured } from '../onboarding/index.js';
 
 
 function printJustCodeASCII() {
@@ -58,49 +57,7 @@ async function main() {
     resumePrompt: null as any,
   };
 
-  let config = loadAppConfig();
-
-  // Onboarding prompt if missing API keys
-  const hasLocalOpenAi = config.openaiEndpoint?.includes('localhost') || config.openaiEndpoint?.includes('127.0.0.1');
-  if (!config.anthropicApiKey && !config.openaiApiKey && !hasLocalOpenAi) {
-    const tempRl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    config = await runOnboarding(tempRl);
-    tempRl.close();
-  }
-
-  // Validate active provider credentials
-  const activeSmartConfig = config.modelAliases.smart;
-  const providerName = activeSmartConfig.provider;
-  let isValid = true;
-  let errorMsg = '';
-
-  if (config.providers && config.providers[providerName]) {
-    if (!config.providers[providerName].apiKey) {
-      isValid = false;
-      errorMsg = `Error: API key for provider "${providerName}" is not set in configuration.`;
-    }
-  } else {
-    if (providerName === 'anthropic' && !config.anthropicApiKey) {
-      isValid = false;
-      errorMsg = 'Error: ANTHROPIC_API_KEY is not set but is required by the active "smart" model provider.\n' +
-        'Please set it using: $env:ANTHROPIC_API_KEY="your-key" in PowerShell or set ANTHROPIC_API_KEY="your-key" in Command Prompt';
-    } else if (providerName === 'openai-compat') {
-      const isLocal = config.openaiEndpoint?.includes('localhost') || config.openaiEndpoint?.includes('127.0.0.1');
-      if (!config.openaiApiKey && !isLocal) {
-        isValid = false;
-        errorMsg = 'Error: OPENAI_API_KEY is not set but is required by the active "smart" OpenAI provider.\n' +
-          'Please set it using: $env:OPENAI_API_KEY="your-key" in PowerShell or set OPENAI_API_KEY="your-key" in Command Prompt';
-      }
-    } else if (!config.anthropicApiKey) {
-      isValid = false;
-      errorMsg = `Error: ANTHROPIC_API_KEY is not set but is required as a fallback for provider "${providerName}".`;
-    }
-  }
-
-  if (!isValid) {
-    console.error(errorMsg);
-    process.exit(1);
-  }
+  const config = await ensureAppConfigured();
 
   // Initialize remaining components
   const registry = new ToolRegistry();
