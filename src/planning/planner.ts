@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { getProviderForAlias } from '../providers/factory.js';
 import { AppConfig } from '../config/index.js';
-import { readPromptSync } from '../config/prompts.js';
+import { prompts } from '../config/prompts.js';
 import { stripFrontmatter } from '../skills/loader.js';
 
 import { PlanList } from './types.js';
@@ -35,7 +35,7 @@ export class PlanningManager {
       const raw = await fs.readFile(skillPath, 'utf-8');
       return stripFrontmatter(raw);
     } catch {
-      return readPromptSync(fallbackPromptFile);
+      return prompts.get(fallbackPromptFile.replace(/\.txt$/, '') as any);
     }
   }
 

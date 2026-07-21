@@ -3,7 +3,7 @@ import path from 'path';
 import { ConversationMessage } from '../providers/types.js';
 import { AppConfig } from '../config/index.js';
 import { getProviderForAlias } from '../providers/factory.js';
-import { readTemplateSync } from '../config/prompts.js';
+import { prompts } from '../config/prompts.js';
 
 export interface FileIndexEntry {
   path: string;
@@ -84,7 +84,7 @@ export async function createSessionSummary(history: ConversationMessage[], confi
     })
     .join('\n\n');
 
-  const systemPrompt = readTemplateSync('session_summary_system.txt');
+  const systemPrompt = prompts.get('session_summary_system');
 
   try {
     const response = await provider.complete({

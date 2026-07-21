@@ -6,7 +6,7 @@ import { introspectSchema, renderSchemaAscii, renderSchemaMermaid, saveSchemaToF
 import { loadDbMemory, revalidateSchema } from '../db/memory.js';
 import { formatQueryResult, formatError } from '../db/formatter.js';
 import { AgentOrchestrator } from '../agent/index.js';
-import { readPromptSync } from '../config/prompts.js';
+import { prompts } from '../config/prompts.js';
 import { ConversationMessage } from '../providers/types.js';
 
 let dbHistory: ConversationMessage[] = [];
@@ -120,7 +120,7 @@ export async function runDbAsk(context: CliContext, config: any, input: string):
     const dbMemory = await loadDbMemory();
     const dbMemoryText = dbMemory.map((m) => `- [${m.tags.join(', ')}] ${m.summary} (ID: ${m.id})`).join('\n');
 
-    const systemPromptBase = readPromptSync('db_admin_system.txt');
+    const systemPromptBase = prompts.get('db_admin_system');
     const systemPrompt = `${systemPromptBase}
 
 ## Current Database Schema (Type: ${config.type}, Name: ${config.name})

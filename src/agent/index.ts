@@ -15,7 +15,7 @@ import { matchSkills as matchSkillsDeterministic } from '../skills/matcher.js';
 import { Skill } from '../skills/types.js';
 import { logTokenUsage } from '../memory/global.js';
 import { loadMemory } from '../memory/project.js';
-import { readPromptSync, readTemplateSync } from '../config/prompts.js';
+import { prompts } from '../config/prompts.js';
 import { classifyToolCall } from '../safety/gate.js';
 import { AgentOptions, ProgressCallback } from './types.js';
 
@@ -121,9 +121,9 @@ function buildSystemPrompt(userPrompt: string | undefined): string {
     ? 'Windows — use cmd-compatible commands (dir, del, if exist) or explicit `powershell -Command "..."` for anything else'
     : 'POSIX — use standard Unix commands (ls, rm, &&)';
 
-  let prompt = userPrompt || readPromptSync('agent_system.txt');
+  let prompt = userPrompt || prompts.get('agent_system');
   try {
-    prompt += `\n\n${readPromptSync('ask_user_guidance.txt')}`;
+    prompt += `\n\n${prompts.get('ask_user_guidance')}`;
   } catch { /* no guidance file */ }
   return `${prompt}\n\nHost: ${platform} \u2014 ${shellHint}`;
 }
@@ -158,7 +158,7 @@ function injectContext(
   }
 
   if (activePlans.length > 0) {
-    const header = readTemplateSync('plan_injection_header.txt');
+    const header = prompts.get('plan_injection_header');
     prompt += `\n\n${header}\n\n`;
     for (const plan of activePlans) {
       prompt += `### Plan File: ".agent/plans/${plan.name}.md"\n${plan.content}\n\n`;
@@ -166,7 +166,7 @@ function injectContext(
   }
 
   if (matchedSkills.length > 0) {
-    const header = readTemplateSync('manual_skill_header.txt');
+    const header = prompts.get('manual_skill_header');
     prompt += `\n\n${header}\n\n`;
     for (const skill of matchedSkills) {
       prompt += `## Skill: ${skill.name}\n${skill.content}\n\n`;
