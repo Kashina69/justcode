@@ -75,7 +75,7 @@ export const handleCommand = async (
     console.log(`  ${colors.bold}/undo${colors.reset}                  Roll back the last file modification made by the agent`);
     console.log(`  ${colors.bold}/theme${colors.reset}                 Choose a premium terminal color theme (One Dark, Catppuccin, etc.)`);
     console.log(`  ${colors.bold}/debug <on|off>${colors.reset}        Toggle detailed flow and tool latency trace logging`);
-    console.log(`  ${colors.bold}/init${colors.reset}                  Scan project and generate .agents/ context files (project.md, agents.md, taste/, modules/)`);
+    console.log(`  ${colors.bold}/init${colors.reset}                  Scan project and generate .agent/ context files (project.md, agents.md, taste/, modules/)`);
     console.log(`  ${colors.bold}/analyze${colors.reset}               Initiate codebase analysis to produce project documentation`);
 
     console.log(`\n${colors.bold}${colors.cyan}✨ Inline Mentions & Context Injections:${colors.reset}`);

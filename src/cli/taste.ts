@@ -13,7 +13,7 @@ export interface TasteEntry {
 }
 
 function projectTastePath(root?: string): string {
-  return path.join(root || process.cwd(), '.agents', 'taste', 'project-taste.md');
+  return path.join(root || process.cwd(), '.agent', 'taste', 'project-taste.md');
 }
 
 function globalTasteDir(): string {

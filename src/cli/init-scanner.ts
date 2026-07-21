@@ -25,7 +25,7 @@ export interface ProjectProfile {
   largeFiles: { path: string; lines: number; purpose: string }[];
 }
 
-const SKIP_DIRS = new Set(['node_modules', '.git', '.agent', '.agents', 'dist', 'build', '.next', '.nuxt', '.turbo', 'coverage', '__pycache__', '.venv', 'venv', 'env', '.env', '.cache', '.yarn', '.pnp', '.svelte-kit', '.output']);
+const SKIP_DIRS = new Set(['node_modules', '.git', '.agent', 'dist', 'build', '.next', '.nuxt', '.turbo', 'coverage', '__pycache__', '.venv', 'venv', 'env', '.env', '.cache', '.yarn', '.pnp', '.svelte-kit', '.output']);
 const SOURCE_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py', '.rs', '.go', '.java', '.kt', '.rb', '.php', '.swift', '.c', '.cpp', '.h', '.hpp', '.css', '.scss', '.sass', '.less', '.vue', '.svelte', '.astro', '.md', '.json', '.yaml', '.yml', '.toml', '.prisma', '.graphql']);
 
 export async function scanProject(root: string): Promise<ProjectProfile> {

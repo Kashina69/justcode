@@ -5,7 +5,7 @@ import { TasteEntry, saveProjectTaste, saveGlobalTaste, loadGlobalTaste } from '
 
 export async function handleInitCommand(): Promise<void> {
   const root = process.cwd();
-  const agentsDir = path.join(root, '.agents');
+  const agentsDir = path.join(root, '.agent');
 
   console.log('\n🔍 Scanning project...');
   const profile = await scanProject(root);
@@ -38,7 +38,7 @@ export async function handleInitCommand(): Promise<void> {
   }
 
   console.log('\n✅ Initialization complete!');
-  console.log(`   📁 ${path.relative(root, agentsDir)}/`);
+  console.log(`   📁 .agent/`);
   console.log(`      ├── project.md`);
   console.log(`      ├── agents.md`);
   console.log(`      ├── taste/`);
