@@ -1,25 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { parseSkillFile } from '../../src/skills/parser.js';
+import { stripFrontmatter } from '../../src/skills/loader.js';
 
-describe('SkillParser', () => {
-  it('should successfully parse a valid skill markdown file', () => {
-    const rawContent = `---
-name: test-skill
-description: descriptive test text
+describe('stripFrontmatter', () => {
+  it('should strip YAML frontmatter delimited by ---', () => {
+    const raw = `---
+name: test
 ---
-# Test Content Header
-body lines here`;
-
-    const parsed = parseSkillFile(rawContent);
-    expect(parsed).not.toBeNull();
-    expect(parsed?.name).toBe('test-skill');
-    expect(parsed?.description).toBe('descriptive test text');
-    expect(parsed?.content).toBe('# Test Content Header\nbody lines here');
+body content`;
+    expect(stripFrontmatter(raw)).toBe('body content');
   });
 
-  it('should return null for file missing correct delimiters', () => {
-    const rawContent = 'no delimiter frontmatter';
-    const parsed = parseSkillFile(rawContent);
-    expect(parsed).toBeNull();
+  it('should return the whole text if no frontmatter', () => {
+    expect(stripFrontmatter('just content')).toBe('just content');
+  });
+
+  it('should handle content with no frontmatter start', () => {
+    expect(stripFrontmatter('some text')).toBe('some text');
   });
 });

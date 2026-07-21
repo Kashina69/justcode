@@ -3,7 +3,7 @@ import path from 'path';
 import { getProviderForAlias } from '../providers/factory.js';
 import { AppConfig } from '../config/index.js';
 import { readPromptSync } from '../config/prompts.js';
-import { parseSkillFile } from '../skills/parser.js';
+import { stripFrontmatter } from '../skills/loader.js';
 
 import { PlanList } from './types.js';
 
@@ -33,14 +33,10 @@ export class PlanningManager {
     try {
       const skillPath = path.join(this.projectRoot, 'skills', skillName, 'SKILL.md');
       const raw = await fs.readFile(skillPath, 'utf-8');
-      const parsed = parseSkillFile(raw);
-      if (parsed) {
-        return parsed.content;
-      }
+      return stripFrontmatter(raw);
     } catch {
-      // Fallback
+      return readPromptSync(fallbackPromptFile);
     }
-    return readPromptSync(fallbackPromptFile);
   }
 
   /**

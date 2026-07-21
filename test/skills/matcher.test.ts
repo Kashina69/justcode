@@ -1,65 +1,16 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { SkillMatcher } from '../../src/skills/matcher.js';
-import { AppConfig } from '../../src/config/index.js';
+import { describe, it, expect } from 'vitest';
+import { matchSkills } from '../../src/skills/matcher.js';
 import { Skill } from '../../src/skills/types.js';
-import fs from 'fs/promises';
 
-describe('SkillMatcher', () => {
-  const dummyConfig: AppConfig = {
-    anthropicApiKey: undefined,
-    openaiApiKey: 'dummy-openai-key',
-    openaiEndpoint: 'https://api.openai.com/v1',
-    modelAliases: {
-      fast: { provider: 'openai-compat', modelId: 'gpt-4o-mini' },
-      smart: { provider: 'openai-compat', modelId: 'gpt-4o' },
-      planner: { provider: 'openai-compat', modelId: 'gpt-4-turbo' },
-    },
-  };
+describe('matchSkills', () => {
+  it('should return all skills unchanged', () => {
+    const skills: Skill[] = [
+      { name: 'coding-efficiency', content: 'efficient' },
+      { name: 'other-skill', content: 'other-rules' },
+    ];
 
-  const dummySkills: Skill[] = [
-    { name: 'coding-efficiency', description: 'always active', content: 'efficient' },
-    { name: 'nextjs-conventions', description: 'next conventions', content: 'next-rules' },
-    { name: 'other-skill', description: 'other behavior', content: 'other-rules' },
-  ];
+    const matched = matchSkills(skills);
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it('should always match coding-efficiency if present', async () => {
-    vi.spyOn(fs, 'readFile').mockRejectedValue(new Error('ENOENT'));
-
-    const matcher = new SkillMatcher(dummyConfig);
-    const matched = await matcher.matchSkills('Just clean my code', dummySkills);
-
-    expect(matched).toHaveLength(1);
-    expect(matched[0].name).toBe('coding-efficiency');
-  });
-
-  it('should match nextjs-conventions if next dependency is in package.json', async () => {
-    vi.spyOn(fs, 'readFile').mockResolvedValue(JSON.stringify({
-      dependencies: {
-        next: '^14.0.0',
-      },
-    }));
-
-    const matcher = new SkillMatcher(dummyConfig);
-    const matched = await matcher.matchSkills('Deploy the server', dummySkills);
-
-    expect(matched).toHaveLength(2);
-    expect(matched.map(s => s.name)).toContain('coding-efficiency');
-    expect(matched.map(s => s.name)).toContain('nextjs-conventions');
-  });
-
-  it('should match other skills via keyword in task description', async () => {
-    vi.spyOn(fs, 'readFile').mockRejectedValue(new Error('ENOENT'));
-
-    const matcher = new SkillMatcher(dummyConfig);
-    const matched = await matcher.matchSkills('Use other-skill please', dummySkills);
-
-    expect(matched).toHaveLength(2);
-    expect(matched.map(s => s.name)).toContain('coding-efficiency');
-    expect(matched.map(s => s.name)).toContain('other-skill');
+    expect(matched).toEqual(skills);
   });
 });
-

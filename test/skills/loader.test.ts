@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { SkillLoader } from '../../src/skills/loader.js';
+import { loadSkills } from '../../src/skills/loader.js';
 import fs from 'fs';
 import path from 'path';
 
-describe('SkillLoader', () => {
+describe('loadSkills', () => {
   const testRoot = path.resolve('test_skills_temp');
 
   beforeEach(() => {
@@ -18,30 +18,23 @@ describe('SkillLoader', () => {
     }
   });
 
-  it('should recursively load skills from directories', async () => {
-    // Setup test folder layout
-    const builtInSkillsDir = path.join(testRoot, 'skills', 'test-cave');
-    fs.mkdirSync(builtInSkillsDir, { recursive: true });
+  it('should load skills from subdirectories containing SKILL.md', async () => {
+    fs.mkdirSync(path.join(testRoot, 'test-skill'), { recursive: true });
     fs.writeFileSync(
-      path.join(builtInSkillsDir, 'SKILL.md'),
-      '---\nname: test-cave\ndescription: test desc\n---\nbody text',
+      path.join(testRoot, 'test-skill', 'SKILL.md'),
+      '---\nname: test-skill\ndescription: test\n---\nbody text',
       'utf-8'
     );
 
-    const projectSkillsDir = path.join(testRoot, '.agent', 'skills', 'test-pony');
-    fs.mkdirSync(projectSkillsDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(projectSkillsDir, 'SKILL.md'),
-      '---\nname: test-pony\ndescription: pony desc\n---\nbody pony',
-      'utf-8'
-    );
+    const skills = await loadSkills(testRoot);
 
-    const loader = new SkillLoader(testRoot);
-    const skills = await loader.loadSkills();
+    expect(skills).toHaveLength(1);
+    expect(skills[0].name).toBe('test-skill');
+    expect(skills[0].content).toBe('body text');
+  });
 
-    expect(skills).toHaveLength(2);
-    const names = skills.map((s) => s.name);
-    expect(names).toContain('test-cave');
-    expect(names).toContain('test-pony');
+  it('should return empty array if directory does not exist', async () => {
+    const skills = await loadSkills('/nonexistent/path');
+    expect(skills).toEqual([]);
   });
 });
