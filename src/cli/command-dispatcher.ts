@@ -42,6 +42,7 @@ export const handleCommand = async (
     console.log('    • Inject file context directly by typing "@filepath" or "@filepath:lines" (e.g. "@src/index.ts:10-20").');
     console.log('    • Type "e" or "expand" to view the full content of folded tool outputs.');
     console.log('    • Type "/init" to scan the project and generate .agent/ context files for the AI.');
+    console.log('    • Type "/mode" to see the current model mode; "/mode fast|smart|planner" to switch.');
     console.log('    • Type "/help" to view this help guide.');
     console.log('    • Type "/list" to see all available slash commands.');
     console.log('    • Type "exit" or "quit" to end the session.');
@@ -76,6 +77,8 @@ export const handleCommand = async (
     console.log(`  ${colors.bold}/undo${colors.reset}                  Roll back the last file modification made by the agent`);
     console.log(`  ${colors.bold}/theme${colors.reset}                 Choose a premium terminal color theme (One Dark, Catppuccin, etc.)`);
     console.log(`  ${colors.bold}/debug <on|off>${colors.reset}        Toggle detailed flow and tool latency trace logging`);
+    console.log(`  ${colors.bold}/mode${colors.reset}                  Show current model mode (fast / smart / planner)`);
+    console.log(`  ${colors.bold}/mode <fast|smart|planner>${colors.reset}  Switch model mode for this session`);
     console.log(`  ${colors.bold}/init${colors.reset}                  Scan project and generate .agent/ context files:`);
     console.log(`                           project.md, agents.md, taste/project-taste.md, modules/*.md`);
     console.log(`                           (run again to rescan and update)`);
@@ -305,6 +308,24 @@ export const handleCommand = async (
     const chosenTheme = themeNames[selectedIdx];
     saveTheme(chosenTheme);
     console.log(`\n🎨 ${colors.bold}${colors.green}Theme successfully updated to: ${chosenTheme}${colors.reset}\n`);
+    return 'sync';
+  }
+
+  if (lowerInput === '/mode') {
+    console.log(`\n${colors.bold}Current mode:${colors.reset} ${colors.cyan}${context.currentMode}${colors.reset}`);
+    console.log(`  ${colors.dim}Use /mode fast | /mode smart | /mode planner to switch.${colors.reset}`);
+    return 'sync';
+  }
+
+  if (lowerInput.startsWith('/mode ')) {
+    const arg = trimmedInput.split(/\s+/)[1]?.toLowerCase();
+    if (arg === 'fast' || arg === 'smart' || arg === 'planner') {
+      context.currentMode = arg;
+      context.orchestrator.setModel(arg);
+      console.log(`${colors.green}✅ Model mode switched to: ${colors.bold}${arg}${colors.reset}`);
+    } else {
+      console.log(`${colors.yellow}Invalid mode "${arg}". Use: fast, smart, or planner.${colors.reset}`);
+    }
     return 'sync';
   }
 

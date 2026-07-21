@@ -1,5 +1,5 @@
 import readline from 'readline';
-import { ConversationMessage } from '../providers/types.js';
+import { ConversationMessage, ModelAlias } from '../providers/types.js';
 import { AgentOrchestrator } from '../agent/index.js';
 import { CliSpinner } from './spinner.js';
 import { BackupManager } from '../safety/backup.js';
@@ -15,6 +15,7 @@ export interface CliContext {
   sessionId: string;
   sessionCost: number;
   debugMode: boolean;
+  currentMode: ModelAlias;
   pinnedSkills: Set<string>;
   mutedSkills: Set<string>;
   lastCollapsedOutput: string | null;

@@ -49,6 +49,7 @@ async function main() {
     sessionId: String(Date.now()),
     sessionCost: 0,
     debugMode: true,
+    currentMode: 'fast',
     pinnedSkills: new Set<string>(),
     mutedSkills: new Set<string>(),
     lastCollapsedOutput: null,

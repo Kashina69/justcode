@@ -154,6 +154,8 @@ On startup the tool initializes a session log, loads config, preloads skill name
 | `/skill mute <name>` | Force a skill excluded for this session |
 | `/skill reset` | Clear all pins and mutes, back to auto-matching |
 | `/debug on\|off` | Toggle flow log trace lines (default: on) |
+| `/mode` | Show current model mode (fast / smart / planner) |
+| `/mode <fast\|smart\|planner>` | Switch model mode for this session |
 | `/plan <goal>` | Draft and critique an implementation plan |
 | `/plans` | List active and archived plans |
 | `/plans archive <id>` | Archive an active plan |
