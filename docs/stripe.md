@@ -1,0 +1,2 @@
+Price id mothly basic price_1T53cFGRuQpJ8hwDZtOF5Dvy
+price id monthly proo price_1T53d4GRuQpJ8hwDlXRXfaCE
