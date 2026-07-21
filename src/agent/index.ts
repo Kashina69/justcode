@@ -17,6 +17,7 @@ import { logTokenUsage } from '../memory/global.js';
 import { loadMemory } from '../memory/project.js';
 import { prompts } from '../config/prompts.js';
 import { classifyToolCall } from '../safety/gate.js';
+import { getTasteContext } from '../cli/taste.js';
 import { AgentOptions, ProgressCallback } from './types.js';
 
 export class AgentOrchestrator {
@@ -61,7 +62,8 @@ export class AgentOrchestrator {
     }
     const memoryText = await loadMemory(this.projectRoot);
     const activePlans = await loadActivePlans();
-    const systemPrompt = injectContext(this.systemPrompt, memoryText, activePlans, matchedSkills);
+    const tasteText = await getTasteContext(this.projectRoot);
+    const systemPrompt = injectContext(this.systemPrompt, memoryText, activePlans, matchedSkills, tasteText);
 
     const availableTools = this.registry.getToolDefinitions();
     const provider = getProviderForAlias(this.modelAlias, this.config);
@@ -150,11 +152,16 @@ function injectContext(
   memoryText: string,
   activePlans: { name: string; content: string }[],
   matchedSkills: Skill[],
+  tasteText: string,
 ): string {
   let prompt = basePrompt;
 
   if (memoryText) {
     prompt += `\n\n## Historical Project Decisions (Project Memory)\n${memoryText}`;
+  }
+
+  if (tasteText) {
+    prompt += `\n\n${tasteText}`;
   }
 
   if (activePlans.length > 0) {
