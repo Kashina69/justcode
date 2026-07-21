@@ -255,8 +255,7 @@ On Exit:
 ### `src/cli/`
 | File | Function / Export | Purpose |
 |---|---|---|
-| `index.ts` | `main()` | REPL boot, onboarding, command dispatcher |
-| `index.ts` | `runOnboarding()` | Interactive first-run config setup |
+| `index.ts` | `main()` | REPL boot, command dispatcher |
 | `index.ts` | `saveSessionMemoryAndExit()` | Save summary & transcripts, cleanup |
 | `index.ts` | `estimateCost()` | Per-model token cost estimation |
 | `index.ts` | `onConfirmDangerousTool()` | Safety prompt (y/N) |
@@ -341,6 +340,14 @@ On Exit:
 | `planner.ts` | `PlanningManager.draftPlan()` | Draft plan via fast model |
 | `planner.ts` | `PlanningManager.critiqueAndRewrite()` | Critique plan via smart model |
 | `planner.ts` | `PlanningManager.savePlan()` / `archivePlan()` | Persist plans to `.agent/plans/` |
+
+### `src/onboarding/`
+| File | Function | Purpose |
+|---|---|---|
+| `index.ts` | `ensureAppConfigured()` | Root function: checks if onboarding needed → runs interactive setup → validates config → returns config or exits |
+| `interactive.ts` | `runInteractiveSetup()` | Interactive provider selection and API key input flow |
+| `validate.ts` | `needsOnboarding()` | Checks whether API keys are missing |
+| `validate.ts` | `validateProviderConfig()` | Validates active provider credentials |
 
 ### `src/skills/`
 | File | Function | Purpose |
