@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>justcode — Documentation</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-sidebar: #161b22;
+    --bg-card: #1c2333;
+    --bg-hover: #252d3f;
+    --bg-code: #151b28;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --text-muted: #6e7681;
+    --accent: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-orange: #d29922;
+    --accent-red: #f85149;
+    --accent-purple: #bc8cff;
+    --scrollbar: #30363d;
+    --scrollbar-hover: #484f58;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    min-height: 100vh;
+    line-height: 1.6;
+    font-size: 15px;
+  }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
+
+  .sidebar {
+    width: 280px;
+    min-width: 280px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    padding: 0;
+    overflow-y: auto;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-header {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sidebar-header .logo {
+    width: 24px;
+    height: 24px;
+    background: var(--accent);
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--bg);
+  }
+
+  .sidebar-header .version {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    margin-left: 32px;
+  }
+
+  .sidebar-nav {
+    padding: 8px 0;
+    flex: 1;
+  }
+
+  .nav-section {
+    padding: 0;
+  }
+
+  .nav-item {
+    display: block;
+    padding: 6px 20px 6px 24px;
+    font-size: 13px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+    text-decoration: none;
+  }
+
+  .nav-item:hover {
+    color: var(--text);
+    background: var(--bg-hover);
+  }
+
+  .nav-item.active {
+    color: var(--accent);
+    background: rgba(88, 166, 255, 0.08);
+    border-left-color: var(--accent);
+    font-weight: 500;
+  }
+
+  .nav-category {
+    padding: 16px 20px 4px 24px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+  }
+
+  .main {
+    flex: 1;
+    padding: 0;
+    overflow-y: auto;
+    height: 100vh;
+  }
+
+  .content {
+    max-width: 860px;
+    padding: 40px 48px 80px;
+    margin: 0 auto;
+  }
+
+  .content h2 {
+    font-size: 28px;
+    font-weight: 600;
+    margin-top: 0;
+    margin-bottom: 8px;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .content h2 .anchor {
+    color: var(--accent);
+    opacity: 0;
+    transition: opacity 0.15s;
+    margin-left: 6px;
+    font-size: 20px;
+    text-decoration: none;
+  }
+
+  .content h2:hover .anchor { opacity: 1; }
+
+  .content .section-desc {
+    color: var(--text-dim);
+    font-size: 15px;
+    margin-bottom: 28px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .content h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin-top: 32px;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+
+  .content h4 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-top: 24px;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+
+  .content p {
+    margin-bottom: 16px;
+    color: var(--text-dim);
+  }
+
+  .content p strong { color: var(--text); }
+
+  .content a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .content a:hover { text-decoration: underline; }
+
+  .content ul, .content ol {
+    margin-bottom: 16px;
+    padding-left: 24px;
+    color: var(--text-dim);
+  }
+
+  .content li { margin-bottom: 4px; }
+  .content li strong { color: var(--text); }
+
+  .code-block {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    tab-size: 2;
+  }
+
+  .code-block .kw { color: #ff7b72; }
+  .code-block .str { color: #a5d6ff; }
+  .code-block .fn { color: #d2a8ff; }
+  .code-block .cm { color: #6e7681; font-style: italic; }
+  .code-block .num { color: #79c0ff; }
+  .code-block .prop { color: #79c0ff; }
+
+  .inline-code {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+    font-size: 14px;
+  }
+
+  th, td {
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    background: var(--bg-sidebar);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+  }
+
+  td { color: var(--text-dim); }
+  td:first-child, td:nth-child(2) { color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 13px; }
+
+  tr:hover td { background: rgba(88, 166, 255, 0.03); }
+
+  .note {
+    background: rgba(88, 166, 255, 0.08);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+
+  .note strong { color: var(--accent); }
+
+  .warning {
+    background: rgba(210, 153, 34, 0.08);
+    border-left: 3px solid var(--accent-orange);
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+
+  .warning strong { color: var(--accent-orange); }
+
+  .danger {
+    background: rgba(248, 81, 73, 0.08);
+    border-left: 3px solid var(--accent-red);
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+
+  .danger strong { color: var(--accent-red); }
+
+  .tag {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    margin-right: 4px;
+  }
+
+  .tag-safe { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); }
+  .tag-write { background: rgba(210, 153, 34, 0.15); color: var(--accent-orange); }
+  .tag-danger { background: rgba(248, 81, 73, 0.15); color: var(--accent-red); }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .feature-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    transition: border-color 0.15s;
+  }
+
+  .feature-card:hover { border-color: var(--accent); }
+
+  .feature-card h4 {
+    margin-top: 0;
+    margin-bottom: 6px;
+    font-size: 14px;
+  }
+
+  .feature-card p {
+    margin-bottom: 0;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .cmd-group {
+    margin-bottom: 24px;
+  }
+
+  .cmd-group h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .cmd-group h4 .badge {
+    font-size: 11px;
+    font-weight: 500;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 1px 8px;
+    border-radius: 4px;
+    color: var(--text-muted);
+  }
+
+  .flow-diagram {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+    color: var(--text-dim);
+  }
+
+  .flow-diagram .hl { color: var(--accent); }
+  .flow-diagram .ok { color: var(--accent-green); }
+  .flow-diagram .warn { color: var(--accent-orange); }
+
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .content { padding: 24px 20px 60px; }
+  }
+
+  .search-box {
+    margin: 12px 16px;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    width: calc(100% - 32px);
+    transition: border-color 0.15s;
+  }
+
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text-muted); }
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sidebar-header">
+    <h1><span class="logo">j</span> justcode</h1>
+    <div class="version">v0.1.0 &mdash; Documentation</div>
+  </div>
+  <input type="text" class="search-box" placeholder="Search docs..." id="searchBox" oninput="filterNav()">
+  <nav class="sidebar-nav" id="sidebarNav"></nav>
+</div>
+<div class="main">
+  <div class="content" id="content"></div>
+</div>
+
+<script>
+const DOCS = [
+  {
+    id: 'overview',
+    title: 'Overview',
+    category: 'Getting Started',
+    description: 'What justcode is and how it works at a glance.',
+    blocks: [
+      { type: 'heading', text: 'What is justcode?' },
+      { type: 'paragraph', text: 'justcode is a <strong>terminal-based agentic AI coding assistant</strong>. You type code requests in natural language, and the agent plans, executes, and verifies code modifications — all within your terminal. It works with Anthropic Claude or any OpenAI-compatible API (DeepSeek, OpenAI, Ollama, etc.).' },
+      { type: 'paragraph', text: 'justcode reads your codebase, executes shell commands, modifies files, and builds a structured memory of project decisions across sessions. It is designed for developers who want AI assistance without leaving the terminal.' },
+      { type: 'heading', text: 'Key Capabilities' },
+      { type: 'list', items: [
+        '<strong>Autonomous task execution</strong> — reads, writes, edits files, and runs shell commands based on natural language requests',
+        '<strong>Multi-model support</strong> — works with Anthropic Claude, OpenAI, DeepSeek, OpenRouter, Ollama, and any OpenAI-compatible API',
+        '<strong>Three-tier safety gate</strong> — automatically classifies operations as safe, write, or dangerous before execution',
+        '<strong>Structured memory graph</strong> — persistent interconnected knowledge nodes stored per-project with BFS recall',
+        '<strong>Skills system</strong> — drop Markdown skill files into <code>skills/</code> to modify agent behavior',
+        '<strong>Planning workflow</strong> — draft, critique, and save execution plans with <code>/plan</code>',
+        '<strong>Database admin agent</strong> — interactive schema introspection, query execution, and AI DB design engineer',
+        '<strong>Session persistence</strong> — save and resume past conversation histories with cost tracking',
+        '<strong>Project context initialization</strong> — <code>/init</code> scans your codebase and generates context files for the agent',
+        '<strong>Taste system</strong> — learns your preferences (framework, style, architecture) with confidence scores',
+      ]},
+      { type: 'heading', text: 'Architecture at a Glance' },
+      { type: 'paragraph', text: 'justcode runs as an interactive REPL. User input is processed by the <strong>AgentOrchestrator</strong>, which injects project context (memory, plans, skills, taste preferences), calls the LLM provider, executes tool calls through the safety gate, and loops until the task completes.' },
+      { type: 'code', lang: 'text', content: `User Input (REPL)\n       \u2502\n       \u2514\u2500 Slash command / inline mention? \u2192 handle locally\n       \u2502\n       \u25bc\nAgentOrchestrator.runTurn()\n       \u2502\n       \u251c\u2500 Load memory + taste + plans + skills\n       \u251c\u2500 Call LLM provider (Anthropic / OpenAI-compat)\n       \u251c\u2500 Parse tool calls \u2192 classify via SafetyGate\n       \u2514\u2500 Execute tools \u2192 recurse until done\n       \u2502\n       \u25bc\nREPL prompts for next input` },
+    ]
+  },
+  {
+    id: 'quick-start',
+    title: 'Quick Start',
+    category: 'Getting Started',
+    description: 'Install, configure, and run justcode in minutes.',
+    blocks: [
+      { type: 'heading', text: 'Requirements' },
+      { type: 'list', items: [
+        'Node.js 20+ (uses native <code>glob</code> API)',
+        '<code>npm</code>',
+        'An API key for Anthropic Claude or an OpenAI-compatible provider',
+      ]},
+      { type: 'heading', text: 'Installation' },
+      { type: 'subheading', text: 'macOS / Linux' },
+      { type: 'code', lang: 'bash', content: 'npm install -g github:kashina69/justcode\n\n# Or run on demand\nnpx github:kashina69/justcode' },
+      { type: 'subheading', text: 'Windows' },
+      { type: 'code', lang: 'bash', content: 'npm install -g https://github.com/kashina69/justcode/tarball/master\n\n# Or run on demand\nnpx https://github.com/kashina69/justcode/tarball/master' },
+      { type: 'subheading', text: 'Local Development' },
+      { type: 'code', lang: 'bash', content: 'git clone https://github.com/Kashina69/justcode.git\ncd justcode\nnpm install\nnpm run build\nnpm install -g .' },
+      { type: 'heading', text: 'Updating' },
+      { type: 'paragraph', text: 'Re-run the install command with <code>--force</code> to clear cache and pull the latest:' },
+      { type: 'code', lang: 'bash', content: 'npm install -g github:kashina69/justcode --force' },
+      { type: 'heading', text: 'First Run' },
+      { type: 'paragraph', text: 'Run <code>justcode</code> from any project folder. On first launch, an interactive setup wizard will prompt you to configure an API provider. After that, you are dropped into the REPL where you can type natural language requests.' },
+      { type: 'code', lang: 'bash', content: 'justcode\n\n# or from the project source\nnpm run dev' },
+    ]
+  },
+  {
+    id: 'configuration',
+    title: 'Configuration',
+    category: 'Getting Started',
+    description: 'API keys, model aliases, and provider settings.',
+    blocks: [
+      { type: 'heading', text: 'Configuration Sources' },
+      { type: 'paragraph', text: 'justcode loads configuration from multiple sources, merged in order:' },
+      { type: 'list', items: [
+        '<strong>Environment variables</strong> — <code>ANTHROPIC_API_KEY</code>, <code>OPENAI_API_KEY</code>, <code>OPENAI_API_ENDPOINT</code>, <code>MODEL_FAST</code>, <code>MODEL_SMART</code>, <code>MODEL_PLANNER</code>',
+        '<strong>Global config</strong> — <code>~/.agent/config.json</code> (applies to all projects)',
+        '<strong>Local config</strong> — <code>./config.json</code> in your project root (overrides global)',
+      ]},
+      { type: 'heading', text: 'Config File Format' },
+      { type: 'code', lang: 'json', content: `{\n  "anthropicApiKey": "sk-ant-...",\n  "modelAliases": {\n    "fast":    { "provider": "anthropic", "modelId": "claude-3-5-haiku-20241022" },\n    "smart":   { "provider": "anthropic", "modelId": "claude-3-5-sonnet-20241022" },\n    "planner": { "provider": "anthropic", "modelId": "claude-3-5-sonnet-20241022" }\n  }\n}` },
+      { type: 'paragraph', text: 'For OpenAI-compatible providers (DeepSeek, OpenRouter, Ollama):' },
+      { type: 'code', lang: 'json', content: `{\n  "openaiApiKey": "sk-...",\n  "openaiEndpoint": "https://api.deepseek.com",\n  "modelAliases": {\n    "fast":    { "provider": "openai-compat", "modelId": "deepseek-chat" },\n    "smart":   { "provider": "openai-compat", "modelId": "deepseek-coder" },\n    "planner": { "provider": "openai-compat", "modelId": "deepseek-coder" }\n  }\n}` },
+      { type: 'heading', text: 'Interactive Configuration' },
+      { type: 'paragraph', text: 'Use the <code>/config</code> slash command to open an interactive configuration editor within the REPL. Use <code>/models</code> to change model-to-alias mappings.' },
+      { type: 'heading', text: 'Model Aliases' },
+      { type: 'paragraph', text: 'Three aliases route requests automatically based on query complexity:' },
+      { type: 'table', headers: ['Alias', 'Default Model', 'Used For'], rows: [
+        ['fast', 'claude-3-5-haiku / deepseek-chat', 'Conversational queries, plan execution steps, session summaries'],
+        ['smart', 'claude-3-5-sonnet / deepseek-coder', 'Complex code tasks, refactoring, general agent responses'],
+        ['planner', 'claude-3-5-sonnet / deepseek-coder', '/plan drafting and critiquing'],
+      ]},
+      { type: 'heading', text: 'Custom Providers' },
+      { type: 'paragraph', text: 'Define multiple providers in <code>config.json</code> and reference them from model aliases:' },
+      { type: 'code', lang: 'json', content: `{\n  "providers": {\n    "my-anthropic": {\n      "type": "anthropic",\n      "apiKey": "sk-ant-..."\n    },\n    "my-openrouter": {\n      "type": "openai-compat",\n      "apiKey": "sk-or-...",\n      "endpoint": "https://openrouter.ai/api/v1"\n    }\n  },\n  "modelAliases": {\n    "fast": { "provider": "my-openrouter", "modelId": "mistralai/mistral-7b-instruct" },\n    "smart": { "provider": "my-anthropic", "modelId": "claude-3-5-sonnet-20241022" }\n  }\n}` },
+    ]
+  },
+  {
+    id: 'usage',
+    title: 'How to Use',
+    category: 'Using justcode',
+    description: 'The REPL, prompting, and inline context injection.',
+    blocks: [
+      { type: 'heading', text: 'The REPL' },
+      { type: 'paragraph', text: 'When you run <code>justcode</code>, you enter an interactive REPL (Read-Eval-Print Loop). You type requests in natural language, and the AI agent responds by thinking, running tools, and generating output.' },
+      { type: 'paragraph', text: 'The prompt looks like:' },
+      { type: 'code', lang: 'text', content: '\u2744\ufe0f You >' },
+      { type: 'heading', text: 'Basic Usage' },
+      { type: 'list', items: [
+        'Type your request (e.g., "Add email validation to user model") and press <strong>Enter</strong>',
+        'The agent chooses the best tools (read, write, search, run shell commands) and executes them',
+        'If details are missing, the agent prompts you with clarifying questions using the <strong>ask_user</strong> tool',
+        'Type <code>exit</code> or <code>quit</code> to end the session (session summary is saved automatically)',
+      ]},
+      { type: 'heading', text: 'Inline Context Injection' },
+      { type: 'paragraph', text: 'You can inject file contents, pin skills, or mute skills directly from your prompt:' },
+      { type: 'table', headers: ['Syntax', 'Action'], rows: [
+        ['<code>@skillname</code>', 'Pin a skill for the rest of the session (always active)'],
+        ['<code>!@skillname</code>', 'Mute a skill for the session (never runs)'],
+        ['<code>@filepath</code>', 'Inject entire file contents into context'],
+        ['<code>@filepath:10-25</code>', 'Inject specific line range (e.g. lines 10-25)'],
+        ['<code>@src/index.ts:5</code>', 'Inject a single line (line 5)'],
+      ]},
+      { type: 'note', text: '<strong>Pro tip:</strong> Use <code>@</code> to reference files and skills simultaneously. The system checks skill names first, then falls back to file paths.' },
+      { type: 'heading', text: 'Collapsible Output' },
+      { type: 'paragraph', text: 'Tool results over 15 lines fold automatically. Type <code>e</code> or <code>expand</code> to view the full content of the last folded output.' },
+    ]
+  },
+  {
+    id: 'commands',
+    title: 'Commands',
+    category: 'Using justcode',
+    description: 'All slash commands, inline mentions, and special inputs.',
+    blocks: [
+      { type: 'heading', text: 'Slash Commands' },
+      { type: 'paragraph', text: 'Commands prefixed with <code>/</code> control justcode directly without involving the AI agent.' },
+      { type: 'table', headers: ['Command', 'Description'], rows: [
+        ['/help', 'Show general help and guide'],
+        ['/list', 'List all available slash commands and their details'],
+        ['/config', 'Open the interactive configuration editor'],
+        ['/models', 'Open the interactive model-to-alias mapping menu'],
+        ['/sessions', 'Open the interactive session history and load menu'],
+        ['/skills', 'List all available capabilities/skills in the project'],
+        ['/skill list', 'List status of all skills with pin/mute indicators'],
+        ['/skill pin <name>', 'Pin a skill (always active for this session)'],
+        ['/skill mute <name>', 'Mute a skill (never runs this session)'],
+        ['/skill reset', 'Clear all pins and mutes, return to auto-matching'],
+        ['/plan <goal>', 'Draft, critique, and save a design plan before execution'],
+        ['/plans', 'List active and archived design plans'],
+        ['/plans archive <id>', 'Archive a specific plan'],
+        ['/memory', 'Display the project timeline memory (.agent/memory.md)'],
+        ['/db', 'Open database administrator and design agent'],
+        ['/cost', 'Show global token statistics and estimated cost summary'],
+        ['/undo', 'Roll back the last file modification made by the agent'],
+        ['/theme', 'Choose a premium terminal color theme'],
+        ['/debug on|off', 'Toggle detailed flow and tool latency trace logging'],
+        ['/init', 'Scan project and generate .agent/ context files'],
+        ['/analyze', 'Initiate codebase analysis to produce project documentation'],
+      ]},
+      { type: 'heading', text: 'DB Sub-commands' },
+      { type: 'table', headers: ['Command', 'Description'], rows: [
+        ['/db setup', 'Run the database connection wizard'],
+        ['/db schema', 'Introspect database schema and show diagrams'],
+        ['/db query <sql>', 'Execute a SQL/NoSQL query (mutations prompt y/N)'],
+        ['/db ask <q>', 'Ask the DB agent a design/optimization question'],
+        ['/db memory', 'View database cached schema memory nodes'],
+        ['/db revalidate', 'Revalidate database schema and record changes'],
+      ]},
+      { type: 'heading', text: 'Special Inputs' },
+      { type: 'table', headers: ['Input', 'Action'], rows: [
+        ['exit / quit', 'Save session summary and exit'],
+        ['e / expand', 'Expand the last collapsed tool output'],
+        ['Ctrl+C', 'Save session and exit (SIGINT handler)'],
+      ]},
+    ]
+  },
+  {
+    id: 'features',
+    title: 'Features',
+    category: 'Using justcode',
+    description: 'Detailed breakdown of every feature.',
+    blocks: [
+      { type: 'heading', text: 'Core Features' },
+      { type: 'feature-grid', items: [
+        { title: 'Agentic Task Execution', desc: 'Reads, writes, edits, and runs shell commands in your project directory based on natural language requests.' },
+        { title: 'Dynamic Model Routing', desc: 'Auto-routes prompts to fast, smart, or planner model based on query complexity.' },
+        { title: 'Three-Tier Safety Gate', desc: 'Safe commands run silently, write commands run and log, dangerous commands require y/N confirmation.' },
+        { title: 'Background Process Jobs', desc: 'start_process returns a jobId; check_process/wait_process poll it. Long-running commands never block the REPL.' },
+        { title: 'Non-blocking Bash', desc: 'Servers and long-running commands run in the background while the REPL stays responsive.' },
+        { title: 'Interactive CLI Spinner', desc: 'Animated loading indicator while the AI thinks or tools run.' },
+        { title: 'Flow Logs', desc: 'Dim single-line trace of every internal step printed live. Toggle with /debug off.' },
+        { title: 'Collapsible Output', desc: 'Tool results over 15 lines fold automatically. Type "e" to expand.' },
+        { title: 'Tab Autocomplete', desc: 'Press Tab to complete slash commands, skill names, and file paths (gitignore-aware).' },
+        { title: 'Manual Skill Control', desc: 'Pin skills with /skill pin or @skillname. Mute with /skill mute or !@skillname.' },
+        { title: 'File Context Injection', desc: 'Hyperfocus the AI on specific files or lines with @filepath or @filepath:lines.' },
+        { title: 'Structured Memory Graph', desc: 'Persistent, interconnected knowledge nodes per-project with BFS recall.' },
+      ]},
+      { type: 'heading', text: 'Memory & Persistence' },
+      { type: 'feature-grid', items: [
+        { title: 'Single-Pass BFS Recall', desc: 'Recall relevant memory clusters in one deterministic tool call, never a loop.' },
+        { title: 'Token Budget Enforcement', desc: 'Memory retrieval is hard-capped by MAX_MEMORY_RECALL_TOKENS (default 4000).' },
+        { title: 'Session Cost Tracking', desc: 'Per-response cost, model latency, and tool execution latency displayed separately.' },
+        { title: 'Resumable Sessions', desc: 'Save and reload past conversation histories with full transcripts.' },
+        { title: 'Project Memory Log', desc: 'Session summaries appended to .agent/memory.md after every session.' },
+        { title: 'Global Cost History', desc: 'Cumulative token and cost stats in ~/.agent/usage.log; view with /cost.' },
+      ]},
+      { type: 'heading', text: 'Project Intelligence' },
+      { type: 'feature-grid', items: [
+        { title: 'Project Context Init', desc: '/init scans codebase and generates .agent/project.md, agents.md, taste/, modules/.' },
+        { title: 'Taste System', desc: 'Learns user preferences (framework, style, architecture) with confidence scores.' },
+        { title: 'Skills System', desc: 'Drop Markdown skill files into skills/ to modify agent behavior.' },
+        { title: 'Planning Workflow', desc: 'Draft, critique, and save execution plans with /plan <goal>.' },
+        { title: 'Database Admin Agent', desc: 'Interactive schema introspection, query execution, and AI DB design engineer.' },
+        { title: 'File Safety', desc: 'Every file write is backed up; /undo rolls back the last change.' },
+      ]},
+    ]
+  },
+  {
+    id: 'safety',
+    title: 'Safety System',
+    category: 'Advanced',
+    description: 'The three-tier safety gate that protects your project.',
+    blocks: [
+      { type: 'heading', text: 'Three-Tier Safety Gate' },
+      { type: 'paragraph', text: 'Every tool call is classified by the <strong>SafetyGate</strong> before execution. The classification determines whether the operation runs silently, runs with logging, or requires user confirmation.' },
+      { type: 'table', headers: ['Tier', 'Examples', 'Prompt?'], rows: [
+        ['<span class="tag tag-safe">safe</span>', 'ls, cat, git status, node -v, read_file, grep, glob', 'No \u2014 runs silently'],
+        ['<span class="tag tag-write">write</span>', 'npm install, write_file, edit_file, record_memory, bash (most commands)', 'No \u2014 runs, logged'],
+        ['<span class="tag tag-danger">dangerous</span>', 'rm -rf, git push --force, unknown tools, path escape, sudo rm, format C:', 'Yes \u2014 y/N required'],
+      ]},
+      { type: 'heading', text: 'Known Tools' },
+      { type: 'paragraph', text: 'justcode recognizes 14 built-in tools. Any tool not in this list is automatically classified as <span class="tag tag-danger">dangerous</span>:' },
+      { type: 'code', lang: 'text', content: 'read_file    write_file    edit_file     bash\ngrep         glob          search_memory recall_memory\nrecord_memory get_memory_node  start_process\ncheck_process  wait_process  ask_user' },
+      { type: 'heading', text: 'Path Safety' },
+      { type: 'paragraph', text: 'If any <code>path</code>, <code>filePath</code>, or <code>dir</code> parameter resolves outside the project root, the tool call is classified as <span class="tag tag-danger">dangerous</span>. This prevents accidental access to system files.' },
+      { type: 'heading', text: 'Dangerous Bash Patterns' },
+      { type: 'paragraph', text: 'The safety gate checks bash commands against patterns like <code>rm -rf</code>, <code>DROP TABLE</code>, <code>git push --force</code>, <code>curl | sh</code>, <code>sudo rm</code>, <code>dd if=</code>, and <code>format C:</code>.' },
+      { type: 'warning', text: '<strong>Note:</strong> The safety gate is a best-effort protection. It does not replace careful review of AI-proposed commands before approval.' },
+    ]
+  },
+  {
+    id: 'memory-system',
+    title: 'Memory System',
+    category: 'Advanced',
+    description: 'How justcode remembers project decisions across sessions.',
+    blocks: [
+      { type: 'heading', text: 'Memory Graph' },
+      { type: 'paragraph', text: 'justcode maintains a persistent graph of interconnected <strong>memory nodes</strong> stored per-project in <code>.agent/memory/</code>. Each node contains a summary, full content, tags, and links to related nodes.' },
+      { type: 'heading', text: 'How Recall Works' },
+      { type: 'paragraph', text: 'Memory retrieval is a single-pass deterministic process:' },
+      { type: 'list', items: [
+        '<strong>Keyword search</strong> — the query is split into keywords and scored against the memory index (summary + tag overlap)',
+        '<strong>Seed selection</strong> — top-N matches are used as seed nodes (default: 3)',
+        '<strong>BFS traversal</strong> — walks <code>relatedTo</code> edges up to maxHops (default: 2), cycle-safe',
+        '<strong>Ranking</strong> — visited nodes sorted by hop distance (ascending), then creation date (descending)',
+        '<strong>Token budget</strong> — content is included until the budget is reached (default: 4000 tokens); remaining nodes become the frontier',
+      ]},
+      { type: 'heading', text: 'Memory Tools' },
+      { type: 'table', headers: ['Tool', 'Purpose'], rows: [
+        ['search_memory', 'Index-only keyword lookup (fast, lightweight)'],
+        ['recall_memory', 'Full BFS graph context retrieval (primary memory tool)'],
+        ['record_memory', 'Write a new memory node to the graph'],
+        ['get_memory_node', 'Drill-down fetch for a single node by ID'],
+      ]},
+      { type: 'heading', text: 'Session Memory' },
+      { type: 'paragraph', text: 'At the end of each session, justcode generates an AI-powered summary using the configured fast model. This summary is appended to <code>.agent/memory.md</code> and saved to <code>.agent/sessions/</code>. The full conversation transcript is also saved for session resumption.' },
+    ]
+  },
+  {
+    id: 'skills',
+    title: 'Skills System',
+    category: 'Advanced',
+    description: 'Extending agent behavior with Markdown skill files.',
+    blocks: [
+      { type: 'heading', text: 'What are Skills?' },
+      { type: 'paragraph', text: 'Skills are Markdown files that modify the agent\'s behavior for specific contexts. Drop a <code>SKILL.md</code> file into the <code>skills/</code> directory of your project, and the agent will automatically load and match it during planning.' },
+      { type: 'heading', text: 'Skill File Format' },
+      { type: 'paragraph', text: 'Each skill is a directory with a <code>SKILL.md</code> file:' },
+      { type: 'code', lang: 'text', content: 'skills/\n  my-skill/\n    SKILL.md' },
+      { type: 'paragraph', text: 'The SKILL.md file can contain YAML frontmatter and Markdown content. The frontmatter defines metadata, and the body defines the agent instruction:' },
+      { type: 'code', lang: 'markdown', content: `---\nname: my-skill\ndescription: Does something specific\n---\n\nWhen working on X, always follow these conventions:\n- Convention 1\n- Convention 2` },
+      { type: 'heading', text: 'Control Commands' },
+      { type: 'table', headers: ['Command', 'Effect'], rows: [
+        ['<code>/skills</code>', 'List all available skills with pin/mute status'],
+        ['<code>/skill pin &lt;name&gt;</code>', 'Force a skill active for this session'],
+        ['<code>/skill mute &lt;name&gt;</code>', 'Force a skill excluded for this session'],
+        ['<code>/skill reset</code>', 'Clear all pins and mutes, back to auto-matching'],
+        ['<code>@skillname</code>', 'Pin a skill from within your prompt'],
+        ['<code>!@skillname</code>', 'Mute a skill from within your prompt'],
+      ]},
+    ]
+  },
+  {
+    id: 'taste',
+    title: 'Taste System',
+    category: 'Advanced',
+    description: 'Learning user preferences with confidence scores.',
+    blocks: [
+      { type: 'heading', text: 'What is the Taste System?' },
+      { type: 'paragraph', text: 'The taste system captures user preferences with confidence scores. It answers questions like "Does this user prefer functional components over classes?" or "Does this project use Tailwind CSS?" Preferences are injected into every LLM request so the agent can make style-consistent decisions.' },
+      { type: 'heading', text: 'Taste Files' },
+      { type: 'list', items: [
+        '<strong>Project taste</strong> — <code>.agent/taste/project-taste.md</code>, project-level preferences detected by <code>/init</code>',
+        '<strong>Global taste</strong> — <code>~/.justcode/taste/global-taste.md</code>, user\'s cross-project preferences',
+      ]},
+      { type: 'heading', text: 'File Format' },
+      { type: 'code', lang: 'text', content: `# Project Taste Preferences\n# Auto-updated by justcode.\n# Last updated: 2026-07-21\n# Total entries: 3\n\n- preference: "uses TypeScript"\n  confidence: 0.98\n  source: "tsconfig.json found"\n  category: "code-style"\n\n- preference: "prefers functional patterns over classes"\n  confidence: 0.85\n  source: "detected from code patterns"\n  category: "architecture"` },
+      { type: 'heading', text: 'How Preferences Are Detected' },
+      { type: 'paragraph', text: 'When you run <code>/init</code>, the scanner analyzes your codebase and creates initial taste entries:' },
+      { type: 'list', items: [
+        'Languages and frameworks detected from config files (package.json, tsconfig.json, etc.)',
+        'Code style conventions (functional vs class-based, semicolons, naming patterns)',
+        'Build tools, test frameworks, and linting configuration',
+        'Feature detection from dependencies (Zod, Prisma, GraphQL, etc.)',
+      ]},
+      { type: 'heading', text: 'Auto-Merge and Pruning' },
+      { type: 'paragraph', text: 'Running <code>/init</code> again merges new detections with existing entries. Matching preferences have their confidence boosted by <code>DECAY_FACTOR</code> (0.05). The system keeps a maximum of <strong>20 entries</strong>, pruning the lowest-confidence items. This keeps the taste file small and high-signal.' },
+      { type: 'note', text: '<strong>Tip:</strong> You can manually edit taste files to add or correct preferences. The confidence score determines how much weight the agent gives to each preference.' },
+    ]
+  },
+  {
+    id: 'init-command',
+    title: 'Init Command',
+    category: 'Features',
+    description: 'Scanning projects and generating context files with /init.',
+    blocks: [
+      { type: 'heading', text: 'The /init Command' },
+      { type: 'paragraph', text: '<code>/init</code> scans the current project and generates a set of context files that help the AI agent understand your codebase. Run it once at the start of a project, and re-run it when the codebase changes significantly.' },
+      { type: 'heading', text: 'Generated Files' },
+      { type: 'code', lang: 'text', content: `.agent/\n  \u251c\u2500 project.md           # Project overview: tech stack, stats, features, conventions\n  \u251c\u2500 agents.md            # Agent guidance: structure, key files, common tasks\n  \u251c\u2500 taste/\n  \u2502   \u2514\u2500 project-taste.md    # Preferences with confidence scores\n  \u2514\u2500 modules/\n      \u251c\u2500 auth.md              # Per-module file listing\n      \u251c\u2500 api.md\n      \u2514\u2500 ui.md` },
+      { type: 'heading', text: 'What Gets Detected' },
+      { type: 'list', items: [
+        '<strong>Languages</strong> — TypeScript, JavaScript, Python, Rust, Go, Java, etc.',
+        '<strong>Frameworks</strong> — React, Next.js, Vue, Svelte, Express, NestJS, Astro, etc.',
+        '<strong>Build tools</strong> — npm, pnpm, yarn, bun, cargo, go, pip',
+        '<strong>Test frameworks</strong> — Vitest, Jest, Playwright, Cypress, Mocha, etc.',
+        '<strong>Code conventions</strong> — strict TypeScript, functional vs class-based, semicolon usage',
+        '<strong>Features</strong> — Zod validation, Prisma ORM, GraphQL, tRPC, i18n, WebSocket',
+        '<strong>Module structure</strong> — directory layout under src/, app/, lib/, etc.',
+        '<strong>CSS frameworks</strong> — Tailwind CSS, UnoCSS, WindiCSS',
+      ]},
+      { type: 'note', text: '<strong>Tip:</strong> The generated <code>project.md</code> and <code>agents.md</code> files are meant to be edited. Add project-specific conventions, architecture notes, or migration instructions to guide the AI more effectively.' },
+    ]
+  },
+  {
+    id: 'planning',
+    title: 'Planning System',
+    category: 'Features',
+    description: 'Drafting, critiquing, and saving execution plans.',
+    blocks: [
+      { type: 'heading', text: 'The Planning Workflow' },
+      { type: 'paragraph', text: 'The planning workflow helps you design and validate a plan before the agent executes it. It uses a two-model approach: the fast model drafts a plan, then the smart model critiques and rewrites it.' },
+      { type: 'heading', text: 'How It Works' },
+      { type: 'list', items: [
+        '<strong>Step 1 — Draft</strong>: <code>/plan &lt;goal&gt;</code> generates a plan outline using the configured fast model',
+        '<strong>Step 2 — Critique</strong>: The smart model reviews the draft for completeness, correctness, and potential issues',
+        '<strong>Step 3 — Approval</strong>: The rewritten plan is displayed for your approval. Type <code>y</code> to save, or <code>n</code> to reject',
+        '<strong>Step 4 — Execution</strong>: Approved plans are saved to <code>.agent/plans/</code> and injected into every agent request',
+      ]},
+      { type: 'heading', text: 'Plan Management' },
+      { type: 'table', headers: ['Command', 'Action'], rows: [
+        ['/plan <goal>', 'Draft, critique, and save a new plan'],
+        ['/plans', 'List all active and archived plans'],
+        ['/plans archive <id>', 'Archive a specific plan'],
+      ]},
+      { type: 'paragraph', text: 'Active plans are injected into the agent\'s system prompt on every turn, so the agent always knows what it should be building toward.' },
+    ]
+  },
+  {
+    id: 'db-agent',
+    title: 'DB Admin Agent',
+    category: 'Features',
+    description: 'Database introspection, querying, and design assistance.',
+    blocks: [
+      { type: 'heading', text: 'Database Administration' },
+      { type: 'paragraph', text: 'Justcode includes a dedicated database administration sub-system accessible via the <code>/db</code> command. It provides schema introspection, query execution, and an AI-powered database design engineer.' },
+      { type: 'heading', text: 'Commands' },
+      { type: 'table', headers: ['Command', 'Description'], rows: [
+        ['/db setup', 'Run the interactive database connection wizard'],
+        ['/db schema', 'Introspect database schema and show Mermaid ER diagrams'],
+        ['/db query <sql>', 'Execute read/write queries (mutations prompt y/N confirmation)'],
+        ['/db ask <question>', 'Start a sub-session with the senior DB agent for design advice'],
+        ['/db memory', 'View database cached schema memory nodes'],
+        ['/db revalidate', 'Force schema introspection and cache revalidation'],
+      ]},
+      { type: 'heading', text: 'How It Works' },
+      { type: 'paragraph', text: 'The DB agent maintains its own memory graph of schema information. When you run <code>/db setup</code>, it connects to your database and introspects the schema. The schema is cached in <code>.agent/db/</code> and can be revalidated on demand. The <code>/db ask</code> command launches a sub-session with a specialized DB admin system prompt.' },
+    ]
+  },
+  {
+    id: 'tools',
+    title: 'Tool Reference',
+    category: 'Reference',
+    description: 'All built-in tools and their purposes.',
+    blocks: [
+      { type: 'heading', text: 'Built-in Tools' },
+      { type: 'paragraph', text: 'justcode ships with 14 built-in tools that the AI agent can use to interact with your project:' },
+      { type: 'table', headers: ['Tool', 'Category', 'Purpose'], rows: [
+        ['read_file', '<span class="tag tag-safe">safe</span>', 'Read the contents of a file'],
+        ['write_file', '<span class="tag tag-write">write</span>', 'Write new file contents (creates directories if needed)'],
+        ['edit_file', '<span class="tag tag-write">write</span>', 'Targeted inline file edits via old/new text replacement'],
+        ['bash', '<span class="tag tag-write">write</span>', 'Execute short shell commands synchronously'],
+        ['start_process', '<span class="tag tag-write">write</span>', 'Start a long command in the background; returns jobId'],
+        ['check_process', '<span class="tag tag-safe">safe</span>', 'Poll a background job by jobId; returns status + new output'],
+        ['wait_process', '<span class="tag tag-safe">safe</span>', 'Block up to a timeout until a background job completes'],
+        ['grep', '<span class="tag tag-safe">safe</span>', 'Regex pattern search in files'],
+        ['glob', '<span class="tag tag-safe">safe</span>', 'File pattern matching using glob patterns'],
+        ['search_memory', '<span class="tag tag-safe">safe</span>', 'Index-only keyword lookup in memory graph'],
+        ['recall_memory', '<span class="tag tag-safe">safe</span>', 'Full BFS graph context retrieval from memory'],
+        ['record_memory', '<span class="tag tag-write">write</span>', 'Write a new memory node to the graph'],
+        ['get_memory_node', '<span class="tag tag-safe">safe</span>', 'Fetch a single memory node by ID'],
+        ['ask_user', '<span class="tag tag-safe">safe</span>', 'Ask the user clarifying questions mid-execution'],
+      ]},
+      { type: 'heading', text: 'Tool Safety' },
+      { type: 'paragraph', text: 'Each tool is classified by the SafetyGate as <span class="tag tag-safe">safe</span> or <span class="tag tag-write">write</span>. Write-tier tools create backups before execution (enabling <code>/undo</code>). Any tool name not in the known set is automatically <span class="tag tag-danger">dangerous</span>.' },
+    ]
+  },
+  {
+    id: 'data-dirs',
+    title: 'Data Directories',
+    category: 'Reference',
+    description: 'All files and directories justcode creates.',
+    blocks: [
+      { type: 'heading', text: 'Project-Level Directories' },
+      { type: 'paragraph', text: 'Inside the project where you run justcode:' },
+      { type: 'code', lang: 'text', content: `.agent/\n  memory.md             # Timeline of session summaries\n  project.md            # Project overview (generated by /init)\n  agents.md             # Agent guidance (generated by /init)\n  session.json          # Project-level cumulative cost & token stats\n  taste/\n    project-taste.md    # Project-level user preferences\n  modules/\n    <name>.md           # Per-module file listing\n  db/\n    config.json         # Database connection settings\n    schema.md           # Auto-generated schema diagrams\n    memory/             # Database cached schema memory\n  memory/\n    index.json          # Memory graph index (ids, summaries, tags)\n    nodes/\n      mem_<id>.json     # Individual memory node files\n  plans/\n    <plan-id>.md        # Active agent plans\n    archived/           # Completed/rejected plans\n  sessions/\n    <ts>_summary.md     # AI-generated session summary\n    session_<id>.json   # Full conversation transcript\n\n.logs/\n  session_<ts>.log      # Full request/response debug logs` },
+      { type: 'heading', text: 'Global User Directories' },
+      { type: 'code', lang: 'text', content: `~/.agent/\n  config.json           # Global API keys and model config\n  usage.log             # Global cumulative token & cost log\n  theme.json            # Active terminal color theme setting\n\n~/.justcode/\n  taste/\n    global-taste.md     # Global user preferences (auto-updated)` },
+      { type: 'heading', text: 'Prompts Directory' },
+      { type: 'paragraph', text: 'System prompts and injection templates are stored in <code>prompts/</code> at the project root:' },
+      { type: 'code', lang: 'text', content: `prompts/\n  agent_system.txt          # Main agent system prompt\n  ask_user_guidance.txt     # Guidance for the ask_user tool\n  db_admin_system.txt       # DB agent system prompt\n  planner_draft_system.txt  # Plan drafting prompt\n  planner_critique_system.txt # Plan critique prompt\n  plan_injection_header.txt # Header for injected plans\n  manual_skill_header.txt   # Header for injected skills\n  session_summary_system.txt # Session summarization prompt\n  skills/                   # Built-in skill library\n    <name>/SKILL.md\n  agents/                   # Agent specs & workflow docs\n    README.md\n    agentic_workflow.md` },
+    ]
+  },
+  {
+    id: 'development',
+    title: 'Development',
+    category: 'Reference',
+    description: 'Building, testing, and contributing to justcode.',
+    blocks: [
+      { type: 'heading', text: 'Development Commands' },
+      { type: 'table', headers: ['Command', 'Purpose'], rows: [
+        ['npm run dev', 'Run in development mode (tsx, no build step)'],
+        ['npm run build', 'Compile TypeScript to dist/'],
+        ['npm test', 'Run all unit and integration tests'],
+        ['npm install -g .', 'Install globally from local source'],
+      ]},
+      { type: 'heading', text: 'Project Structure' },
+      { type: 'code', lang: 'text', content: `src/\n  agent/        # Agent orchestrator (LLM loop, tool dispatch)\n  cli/          # CLI layer (REPL, commands, menus, themes, init, taste)\n  config/       # App config loading, prompts, constants\n  db/           # Database schema introspection and query tools\n  memory/       # Memory graph (index, recall, record, sessions)\n  onboarding/   # First-run setup wizard\n  planning/     # Plan drafting, critiquing, saving\n  providers/    # LLM provider abstraction (Anthropic, OpenAI-compat)\n  safety/       # Tool classification gate + backup manager\n  skills/       # Skill loading, matching, types\n  tools/        # Tool implementations (14 built-in tools)\n\ntest/           # Test files mirroring src/ structure\nprompts/        # System prompts, templates, skills, agent docs` },
+      { type: 'heading', text: 'Key Source Files' },
+      { type: 'table', headers: ['File', 'Purpose'], rows: [
+        ['src/cli/index.ts', 'REPL boot, command dispatcher, entry point'],
+        ['src/cli/repl.ts', 'Main REPL loop and prompt processing'],
+        ['src/cli/command-dispatcher.ts', 'All slash command handlers'],
+        ['src/cli/init.ts', '/init command handler'],
+        ['src/cli/init-scanner.ts', 'Project scanner for /init'],
+        ['src/cli/taste.ts', 'Taste system (preferences with confidence)'],
+        ['src/agent/index.ts', 'AgentOrchestrator.runTurn() main loop'],
+        ['src/safety/gate.ts', 'Three-tier SafetyGate'],
+        ['src/safety/backup.ts', 'File backup/undo manager'],
+        ['src/config/index.ts', 'AppConfig loading and writing'],
+        ['src/config/prompts.ts', 'PromptProvider singleton'],
+        ['src/memory/recall.ts', 'Memory graph BFS recall'],
+        ['src/providers/factory.ts', 'Provider resolution by alias'],
+      ]},
+      { type: 'heading', text: 'Testing' },
+      { type: 'paragraph', text: 'justcode uses <strong>Vitest</strong> for testing. Tests are located in <code>test/</code> mirroring the <code>src/</code> structure. Run <code>npm test</code> to execute all tests. There are currently 32 test files with 116+ tests covering all major subsystems.' },
+    ]
+  },
+];
+
+// ---- Rendering Engine ----
+
+function renderBlock(block) {
+  switch (block.type) {
+    case 'heading':
+      return `<h3>${block.text}</h3>`;
+    case 'subheading':
+      return `<h4>${block.text}</h4>`;
+    case 'paragraph':
+      return `<p>${block.text}</p>`;
+    case 'note':
+      return `<div class="note">${block.text}</div>`;
+    case 'warning':
+      return `<div class="warning">${block.text}</div>`;
+    case 'danger':
+      return `<div class="danger">${block.text}</div>`;
+    case 'list':
+      return `<ul>${block.items.map(i => `<li>${i}</li>`).join('')}</ul>`;
+    case 'code':
+      return `<div class="code-block">${escapeHtml(block.content)}</div>`;
+    case 'table':
+      return `<table><thead><tr>${block.headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${block.rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    case 'feature-grid':
+      return `<div class="feature-grid">${block.items.map(i => `<div class="feature-card"><h4>${i.title}</h4><p>${i.desc}</p></div>`).join('')}</div>`;
+    default:
+      return '';
+  }
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderSection(section) {
+  const blocksHtml = section.blocks.map(b => renderBlock(b)).join('\n');
+  return `<h2 id="${section.id}">${section.title} <a class="anchor" href="#${section.id}">#</a></h2>
+          <div class="section-desc">${section.description}</div>
+          ${blocksHtml}`;
+}
+
+function renderAll() {
+  const content = document.getElementById('content');
+  content.innerHTML = DOCS.map(s => renderSection(s)).join('\n');
+
+  const nav = document.getElementById('sidebarNav');
+  let categories = {};
+  DOCS.forEach(s => {
+    const cat = s.category || 'General';
+    if (!categories[cat]) categories[cat] = [];
+    categories[cat].push(s);
+  });
+
+  let navHtml = '';
+  for (const [cat, items] of Object.entries(categories)) {
+    navHtml += `<div class="nav-category">${cat}</div>`;
+    navHtml += `<div class="nav-section">`;
+    items.forEach(s => {
+      navHtml += `<a class="nav-item" href="#${s.id}" data-section="${s.id}">${s.title}</a>`;
+    });
+    navHtml += `</div>`;
+  }
+  nav.innerHTML = navHtml;
+
+  // Active nav tracking
+  const navItems = document.querySelectorAll('.nav-item');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.id;
+        navItems.forEach(n => n.classList.remove('active'));
+        const active = document.querySelector(`.nav-item[data-section="${id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-80px 0px -60% 0px' });
+
+  document.querySelectorAll('h2').forEach(h => observer.observe(h));
+
+  // Click scroll
+  navItems.forEach(n => {
+    n.addEventListener('click', (e) => {
+      e.preventDefault();
+      const target = document.getElementById(n.dataset.section);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        navItems.forEach(ni => ni.classList.remove('active'));
+        n.classList.add('active');
+      }
+    });
+  });
+}
+
+function filterNav() {
+  const query = document.getElementById('searchBox').value.toLowerCase();
+  const items = document.querySelectorAll('.nav-item');
+  const categories = document.querySelectorAll('.nav-category');
+  const sections = document.querySelectorAll('.nav-section');
+
+  items.forEach(item => {
+    const text = item.textContent.toLowerCase();
+    const parentSection = item.closest('.nav-section');
+    if (text.includes(query)) {
+      item.style.display = 'block';
+      if (parentSection) parentSection.style.display = 'block';
+    } else {
+      item.style.display = 'none';
+    }
+  });
+
+  // Hide empty sections and their category labels
+  sections.forEach(section => {
+    const visible = Array.from(section.querySelectorAll('.nav-item')).some(n => n.style.display !== 'none');
+    section.style.display = visible ? 'block' : 'none';
+  });
+
+  categories.forEach(cat => {
+    let next = cat.nextElementSibling;
+    let hasVisible = false;
+    while (next && next.classList.contains('nav-section')) {
+      if (next.style.display !== 'none') { hasVisible = true; break; }
+      next = next.nextElementSibling;
+    }
+    cat.style.display = hasVisible ? 'block' : 'none';
+  });
+}
+
+document.addEventListener('DOMContentLoaded', renderAll);
+</script>
+</body>
+</html>
