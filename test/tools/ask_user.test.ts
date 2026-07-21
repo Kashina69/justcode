@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AskUserTool } from '../../src/tools/ask_user.js';
 import readline from 'readline';
 
+vi.spyOn(console, 'log').mockImplementation(() => {});
+
 // Mock the CLI modules
 vi.mock('../../src/cli/ask-question.js', () => ({
   askQuestion: vi.fn(),

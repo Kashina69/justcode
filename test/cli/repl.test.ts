@@ -4,6 +4,8 @@ import { CliContext } from '../../src/cli/context.js';
 import fs from 'fs';
 import path from 'path';
 
+vi.spyOn(console, 'log').mockImplementation(() => {});
+
 describe('processUserPrompt', () => {
   it('should pin a skill when prompt contains @skillname', async () => {
     const mockContext = {
