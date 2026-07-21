@@ -1,18 +1,8 @@
 import { writeMemoryNode, appendToMemoryIndex } from './store.js';
 import { MemoryNode } from './types.js';
 
-/**
- * Serializes and registers a new memory node into the graph.
- * Saves the JSON node file and appends node properties to index.json.
- * 
- * @param summary One-line summary descriptive text.
- * @param content Full comprehensive content of the memory node.
- * @param relatedToIds Array of connected node ID strings.
- * @param tags Free-form categorization tags.
- * @param sourceSessionId Session ID context that created this node.
- * @param projectRoot Target project root directory, defaults to process.cwd().
- * @returns Resolves to the newly generated MemoryNode ID string.
- */
+let idCounter = 0;
+
 export async function recordMemoryNode(
   summary: string,
   content: string,
@@ -23,7 +13,8 @@ export async function recordMemoryNode(
 ): Promise<string> {
   const dateStr = new Date().toISOString().split('T')[0];
   const timestamp = Date.now();
-  const nodeId = `mem_${dateStr}_${timestamp}`;
+  const seq = (idCounter++).toString(36).padStart(4, '0');
+  const nodeId = `mem_${dateStr}_${timestamp}_${seq}`;
 
   const node: MemoryNode = {
     id: nodeId,
