@@ -130,7 +130,7 @@ On startup the tool initializes a session log, loads config, preloads skill name
 - **Planning workflow** — `/plan <goal>` generates, critiques, and saves agent execution plans
 - **Project memory log** — session summaries appended to `.agent/memory.md` after every session
 - **File safety** — every file write is backed up; `/undo` rolls back the last change
-- **External prompts & templates** — all system prompts in `prompts/`, all injection glue strings in `templates/` — edit without touching code
+- **External prompts & templates** — all system prompts and injection glue strings in `prompts/` — edit without touching code
 - **Extensive session logging** — full request/response logs written to `.logs/session_*.log`
 - **Global cost history** — cumulative token and cost stats in `~/.agent/usage.log`; view with `/cost`
 
@@ -207,8 +207,8 @@ AgentOrchestrator.runTurn()
        │
        ├─ Load project memory (.agent/memory.md)
        ├─ Load active plans (.agent/plans/*.md)
-       ├─ Load + match skills → apply pin/mute session overrides
-       │     └─ flow_event: "skill_match  2 active [caveman, ponytail] (12ms)"
+        ├─ Load + match skills → apply pin/mute session overrides
+        │     └─ flow_event: "skill_match  2 active [coding_efficiency, nextjs_conventions] (0ms)"
        ├─ routeModelAlias() → 'fast' | 'smart' | 'planner'
        │     └─ flow_event: "model_route  → smart (deepseek-coder)"
        │
@@ -243,7 +243,7 @@ Response Processing
        Final answer printed, REPL prompts for next input
 
 On Exit:
-  ├─ SessionMemory: summary (from templates/session_summary_system.txt) → .agent/sessions/
+  ├─ SessionMemory: summary (from prompts/session_summary_system.txt) → .agent/sessions/
   ├─ SessionManager: transcript → .agent/sessions/session_<id>.json
   └─ BashTool.cleanup() → kill background processes + job registry
 ```
@@ -289,8 +289,8 @@ On Exit:
 | `index.ts` | `loadAppConfig()` | Loads config from env vars, global `~/.agent/config.json`, or local `config.json` |
 | `index.ts` | `writeAppConfig()` | Writes settings back to global config file |
 | `index.ts` | `MAX_MEMORY_RECALL_TOKENS` | Named constant for memory token budget (default 4000) |
-| `prompts.ts` | `readPromptSync()` | Loads system prompt text from `prompts/` directory |
-| `prompts.ts` | `readTemplateSync()` | Loads structural glue strings from `templates/` directory |
+| `prompts.ts` | `prompts` | `PromptProvider` singleton — lazy-loads and caches prompts on first `get()` |
+| `prompts.ts` | `readPromptSync()` / `readTemplateSync()` | Backward-compatible wrappers around `prompts.get()` |
 
 ### `src/memory/`
 | File | Function | Purpose |
@@ -302,7 +302,9 @@ On Exit:
 | `graph-traversal.ts` | `walkRelatedNodesBreadthFirst()` | Pure BFS over `relatedTo` edges, cycle-safe, no I/O |
 | `recall.ts` | `recallMemoryContext()` | Orchestrates: search → BFS → rank → token budget → single result |
 | `record.ts` | `recordMemoryNode()` | Creates node file + appends to index |
-| `project.ts` | `ProjectMemoryManager` | Session summaries (prompt from `templates/`), `.agent/memory.md` timeline |
+| `project.ts` | `loadMemory()` / `appendMemory()` | Read/write `.agent/memory.md` project timeline |
+| `project.ts` | `loadIndex()` / `saveIndex()` | Read/write `.agent/index.json` file index |
+| `project.ts` | `createSessionSummary()` / `saveSessionSummary()` | AI-generated session summaries via `fast` LLM, saved to `.agent/sessions/` |
 | `session.ts` | `SessionManager` | Project-level cost/token stats in `.agent/session.json`, history transcripts |
 | `global.ts` | `logTokenUsage()` | Appends global usage to `~/.agent/usage.log` |
 | `logger.ts` | `SessionLogger` | Structured per-session log files in `.logs/` |
@@ -310,10 +312,10 @@ On Exit:
 ### `src/tools/`
 | File | Tool Name | Purpose |
 |---|---|---|
-| `bash.ts` | `bash` | Executes short shell commands synchronously |
-| `bash.ts` | `start_process` | Starts a long command in the background; returns `jobId` immediately |
-| `bash.ts` | `check_process` | Polls a background job by `jobId`; returns status + new output since last check |
-| `bash.ts` | `wait_process` | Blocks up to a timeout until a background job completes; returns exit code + full output |
+| `bash/bash-tool.ts` | `bash` | Executes short shell commands synchronously |
+| `bash/start-process.ts` | `start_process` | Starts a long command in the background; returns `jobId` immediately |
+| `bash/check-process.ts` | `check_process` | Polls a background job by `jobId`; returns status + new output since last check |
+| `bash/wait-process.ts` | `wait_process` | Blocks up to a timeout until a background job completes; returns exit code + full output |
 | `read_file.ts` | `read_file` | Reads file contents |
 | `write_file.ts` | `write_file` | Writes new file contents |
 | `edit_file.ts` | `edit_file` | Targeted inline file edits |
@@ -343,9 +345,9 @@ On Exit:
 ### `src/skills/`
 | File | Function | Purpose |
 |---|---|---|
-| `loader.ts` | `SkillLoader.loadSkills()` | Scans `skills/**/*.md` for custom agent behavior files |
-| `matcher.ts` | `SkillMatcher.matchSkills()` | Semantically matches skills to current task via LLM |
-| `parser.ts` | `parseSkillFile()` | Parses YAML front-matter + content from skill markdown |
+| `loader.ts` | `loadSkills()` | Scans `skills/*/SKILL.md` for custom agent behavior files |
+| `loader.ts` | `stripFrontmatter()` | Strips YAML front-matter from skill markdown |
+| `matcher.ts` | `matchSkills()` | Deterministic skill matching (returns all skills — classifier was removed per token-efficiency plan) |
 
 ---
 
@@ -372,18 +374,20 @@ On Exit:
     session.json          ← project-level cumulative cost & token stats
   .logs/
     session_<timestamp>.log   ← full request/response debug logs
-  skills/
-    <skill-name>/
-      SKILL.md            ← custom behavior skill (built-in: caveman, ponytail)
-  prompts/                    ← main system prompts (loaded via readPromptSync)
+  prompts/                    ← all prompts, templates, skills & agent docs (loaded via PromptProvider)
     agent_system.txt
+    ask_user_guidance.txt
+    db_admin_system.txt
     planner_draft_system.txt
     planner_critique_system.txt
-    skills_match_system.txt
-  templates/                  ← structural glue strings (loaded via readTemplateSync)
     plan_injection_header.txt
-    skill_injection_header.txt
+    manual_skill_header.txt
     session_summary_system.txt
+    skills/                         ← built-in skill library (loaded at runtime)
+      <skill-name>/SKILL.md
+    agents/                         ← agent specs & workflow docs (informational)
+      README.md
+      agentic_workflow.md
 
 ~/.agent/
   config.json             ← global API keys and model config
@@ -413,9 +417,3 @@ Three aliases route requests automatically based on query complexity:
 | `planner` | claude-3-5-sonnet / deepseek-coder | `/plan` drafting and critiquing |
 
 Routing is keyword-based on the last user message — no extra LLM call.
-
-
-
-find . -iname "*justcode*"
-
-openTUI
