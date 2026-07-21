@@ -12,151 +12,102 @@ export interface FileIndexEntry {
   lastModified: number;
 }
 
-export class ProjectMemoryManager {
-  private projectRoot: string;
-  private agentDir: string;
-  private config: AppConfig;
+function agentDir(projectRoot: string): string {
+  return path.join(projectRoot, '.agent');
+}
 
-  /**
-   * Initializes the ProjectMemoryManager.
-   * 
-   * @param config The application configuration context.
-   * @param projectRoot Target project directory, defaults to current working directory.
-   */
-  constructor(config: AppConfig, projectRoot: string = process.cwd()) {
-    this.config = config;
-    this.projectRoot = path.resolve(projectRoot);
-    this.agentDir = path.join(this.projectRoot, '.agent');
+export async function loadMemory(projectRoot: string = process.cwd()): Promise<string> {
+  const memoryPath = path.join(agentDir(projectRoot), 'memory.md');
+  try {
+    return await fs.readFile(memoryPath, 'utf-8');
+  } catch {
+    return '';
   }
+}
 
-  /**
-   * Loads the project memory prose from .agent/memory.md.
-   * 
-   * @returns A promise resolving to the memory text, or empty string.
-   */
-  async loadMemory(): Promise<string> {
-    const memoryPath = path.join(this.agentDir, 'memory.md');
-    try {
-      return await fs.readFile(memoryPath, 'utf-8');
-    } catch {
-      return '';
-    }
+export async function appendMemory(note: string, projectRoot: string = process.cwd()): Promise<void> {
+  const memoryPath = path.join(agentDir(projectRoot), 'memory.md');
+  const timestamp = new Date().toISOString();
+  const formattedNote = `\n[${timestamp}] - ${note}\n`;
+  try {
+    await fs.mkdir(agentDir(projectRoot), { recursive: true });
+    await fs.appendFile(memoryPath, formattedNote, 'utf-8');
+  } catch (error) {
+    console.error('Failed to append to project memory:', error);
   }
+}
 
-  /**
-   * Appends a new timestamped prose note to the memory log.
-   * 
-   * @param note The description of the decision or updates.
-   */
-  async appendMemory(note: string): Promise<void> {
-    const memoryPath = path.join(this.agentDir, 'memory.md');
-    const timestamp = new Date().toISOString();
-    const formattedNote = `\n[${timestamp}] - ${note}\n`;
-
-    try {
-      await fs.mkdir(this.agentDir, { recursive: true });
-      await fs.appendFile(memoryPath, formattedNote, 'utf-8');
-    } catch (error) {
-      console.error('Failed to append to project memory:', error);
-    }
+export async function loadIndex(projectRoot: string = process.cwd()): Promise<Record<string, FileIndexEntry>> {
+  const indexPath = path.join(agentDir(projectRoot), 'index.json');
+  try {
+    const data = await fs.readFile(indexPath, 'utf-8');
+    const parsed = JSON.parse(data);
+    return parsed.files || {};
+  } catch {
+    return {};
   }
+}
 
-  /**
-   * Loads the file index metadata from .agent/index.json.
-   * 
-   * @returns A promise resolving to the record of files.
-   */
-  async loadIndex(): Promise<Record<string, FileIndexEntry>> {
-    const indexPath = path.join(this.agentDir, 'index.json');
-    try {
-      const data = await fs.readFile(indexPath, 'utf-8');
-      const parsed = JSON.parse(data);
-      return parsed.files || {};
-    } catch {
-      return {};
-    }
+export async function saveIndex(files: Record<string, FileIndexEntry>, projectRoot: string = process.cwd()): Promise<void> {
+  const indexPath = path.join(agentDir(projectRoot), 'index.json');
+  try {
+    await fs.mkdir(agentDir(projectRoot), { recursive: true });
+    await fs.writeFile(indexPath, JSON.stringify({ files }, null, 2), 'utf-8');
+  } catch (error) {
+    console.error('Failed to save project index:', error);
   }
+}
 
-  /**
-   * Saves the file index metadata to .agent/index.json.
-   * 
-   * @param files The dictionary of index entries.
-   */
-  async saveIndex(files: Record<string, FileIndexEntry>): Promise<void> {
-    const indexPath = path.join(this.agentDir, 'index.json');
-    try {
-      await fs.mkdir(this.agentDir, { recursive: true });
-      await fs.writeFile(indexPath, JSON.stringify({ files }, null, 2), 'utf-8');
-    } catch (error) {
-      console.error('Failed to save project index:', error);
-    }
+export async function createSessionSummary(history: ConversationMessage[], config: AppConfig): Promise<string> {
+  if (history.length === 0) {
+    return 'Empty session conversation.';
   }
+  const provider = getProviderForAlias('fast', config);
+  const messagesDump = history
+    .map((msg) => {
+      let contentText = '';
+      if (typeof msg.content === 'string') {
+        contentText = msg.content;
+      } else if (Array.isArray(msg.content)) {
+        contentText = msg.content
+          .map((b) => {
+            if (b.type === 'text') return b.text;
+            if (b.type === 'tool_use')
+              return `[Called tool "${b.name}" with inputs: ${JSON.stringify(b.input)}]`;
+            if (b.type === 'tool_result')
+              return `[Tool execution output: ${b.content.substring(0, 100)}]`;
+            return '';
+          })
+          .join(' ');
+      }
+      return `${msg.role.toUpperCase()}: ${contentText.substring(0, 500)}`;
+    })
+    .join('\n\n');
 
-  /**
-   * Triggers the fast model provider to generate a short, high-level summary of the session history.
-   * 
-   * @param history The conversation message history.
-   * @returns A promise resolving to the session summary text.
-   */
-  async createSessionSummary(history: ConversationMessage[]): Promise<string> {
-    if (history.length === 0) {
-      return 'Empty session conversation.';
-    }
+  const systemPrompt = readTemplateSync('session_summary_system.txt');
 
-    const provider = getProviderForAlias('fast', this.config);
-
-    const messagesDump = history
-      .map((msg) => {
-        let contentText = '';
-        if (typeof msg.content === 'string') {
-          contentText = msg.content;
-        } else if (Array.isArray(msg.content)) {
-          contentText = msg.content
-            .map((b) => {
-              if (b.type === 'text') return b.text;
-              if (b.type === 'tool_use')
-                return `[Called tool "${b.name}" with inputs: ${JSON.stringify(b.input)}]`;
-              if (b.type === 'tool_result')
-                return `[Tool execution output: ${b.content.substring(0, 100)}]`;
-              return '';
-            })
-            .join(' ');
-        }
-        return `${msg.role.toUpperCase()}: ${contentText.substring(0, 500)}`;
-      })
-      .join('\n\n');
-
-    const systemPrompt = readTemplateSync('session_summary_system.txt');
-
-    try {
-      const response = await provider.complete({
-        systemPrompt,
-        messages: [{ role: 'user', content: `Conversation Transcript:\n${messagesDump}` }],
-        availableTools: [],
-        modelAlias: 'fast',
-      });
-      return response.textContent.trim();
-    } catch (error: any) {
-      return `Failed to summarize session automatically: ${error.message}`;
-    }
+  try {
+    const response = await provider.complete({
+      systemPrompt,
+      messages: [{ role: 'user', content: `Conversation Transcript:\n${messagesDump}` }],
+      availableTools: [],
+      modelAlias: 'fast',
+    });
+    return response.textContent.trim();
+  } catch (error: any) {
+    return `Failed to summarize session automatically: ${error.message}`;
   }
+}
 
-  /**
-   * Saves the generated session summary text to a markdown file in .agent/sessions/.
-   * 
-   * @param summary The markdown summary text.
-   */
-  async saveSessionSummary(summary: string): Promise<void> {
-    const sessionsDir = path.join(this.agentDir, 'sessions');
-    const timestamp = Date.now();
-    const summaryFileName = `${timestamp}_summary.md`;
-    const summaryPath = path.join(sessionsDir, summaryFileName);
-
-    try {
-      await fs.mkdir(sessionsDir, { recursive: true });
-      await fs.writeFile(summaryPath, summary, 'utf-8');
-    } catch (error) {
-      console.error('Failed to save session summary:', error);
-    }
+export async function saveSessionSummary(summary: string, projectRoot: string = process.cwd()): Promise<void> {
+  const sessionsDir = path.join(agentDir(projectRoot), 'sessions');
+  const timestamp = Date.now();
+  const summaryFileName = `${timestamp}_summary.md`;
+  const summaryPath = path.join(sessionsDir, summaryFileName);
+  try {
+    await fs.mkdir(sessionsDir, { recursive: true });
+    await fs.writeFile(summaryPath, summary, 'utf-8');
+  } catch (error) {
+    console.error('Failed to save session summary:', error);
   }
 }

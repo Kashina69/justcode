@@ -1,6 +1,5 @@
 import { Tool } from './types.js';
-import { IndexStore } from '../memory/index-store.js';
-import { NodeStore } from '../memory/node-store.js';
+import { loadMemoryIndex, readMemoryNode } from '../memory/store.js';
 import { searchMemoryIndexByKeyword } from '../memory/keyword-search.js';
 import { recallMemoryContext } from '../memory/recall.js';
 import { recordMemoryNode } from '../memory/record.js';
@@ -26,8 +25,7 @@ export class SearchMemoryTool implements Tool {
   };
 
   async execute(args: { query: string; maxResults?: number }): Promise<string> {
-    const store = new IndexStore();
-    const index = await store.loadMemoryIndex();
+    const index = await loadMemoryIndex();
     const matches = searchMemoryIndexByKeyword(index, args.query, args.maxResults);
     return JSON.stringify(matches, null, 2);
   }
@@ -141,8 +139,7 @@ export class GetMemoryNodeTool implements Tool {
 
   async execute(args: { id: string }): Promise<string> {
     try {
-      const store = new NodeStore();
-      const node = await store.readMemoryNode(args.id);
+      const node = await readMemoryNode(args.id);
       return JSON.stringify(node, null, 2);
     } catch {
       return `Error: Memory node with ID "${args.id}" was not found on disk.`;

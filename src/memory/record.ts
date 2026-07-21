@@ -1,5 +1,4 @@
-import { NodeStore } from './node-store.js';
-import { IndexStore } from './index-store.js';
+import { writeMemoryNode, appendToMemoryIndex } from './store.js';
 import { MemoryNode } from './types.js';
 
 /**
@@ -36,17 +35,8 @@ export async function recordMemoryNode(
     sourceSessionId,
   };
 
-  // 1. Serialize node to nodes/<id>.json
-  const nodeStore = new NodeStore(projectRoot);
-  await nodeStore.writeMemoryNode(node);
-
-  // 2. Append to index.json
-  const indexStore = new IndexStore(projectRoot);
-  await indexStore.appendToMemoryIndex({
-    id: nodeId,
-    summary,
-    tags,
-  });
+  await writeMemoryNode(node, projectRoot);
+  await appendToMemoryIndex({ id: nodeId, summary, tags }, projectRoot);
 
   return nodeId;
 }

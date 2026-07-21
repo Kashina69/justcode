@@ -1,5 +1,4 @@
-import { NodeStore } from './node-store.js';
-import { IndexStore } from './index-store.js';
+import { readMemoryNode, loadMemoryIndex } from './store.js';
 import { searchMemoryIndexByKeyword } from './keyword-search.js';
 import { walkRelatedNodesBreadthFirst } from './graph-traversal.js';
 import { MemoryRecallResult, MemoryNode } from './types.js';
@@ -35,10 +34,9 @@ export async function recallMemoryContext(
   const tokenBudget = options.tokenBudget ?? MAX_MEMORY_RECALL_TOKENS;
   const projectRoot = options.projectRoot ?? process.cwd();
 
-  const nodeStore = new NodeStore(projectRoot);
-  const indexStore = new IndexStore(projectRoot);
+  const index = await loadMemoryIndex(projectRoot);
 
-  const index = await indexStore.loadMemoryIndex();
+
   const seedMatches = searchMemoryIndexByKeyword(index, query, maxSeedNodes);
   const seedIds = seedMatches.map((m) => m.id);
 
@@ -56,7 +54,7 @@ export async function recallMemoryContext(
 
   const getNodeEdges = async (id: string) => {
     try {
-      const node = await nodeStore.readMemoryNode(id);
+      const node = await readMemoryNode(id, projectRoot);
       return node.relatedTo;
     } catch {
       return [];
@@ -68,7 +66,7 @@ export async function recallMemoryContext(
   const loadedVisited: { hop: number; node: MemoryNode }[] = [];
   for (const [id, hop] of visited.entries()) {
     try {
-      const node = await nodeStore.readMemoryNode(id);
+      const node = await readMemoryNode(id, projectRoot);
       loadedVisited.push({ hop, node });
     } catch {
       // Ignore missing files

@@ -1,11 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ProjectMemoryManager } from '../../src/memory/project.js';
+import {
+  loadMemory,
+  appendMemory,
+  loadIndex,
+  saveIndex,
+  createSessionSummary,
+  saveSessionSummary,
+} from '../../src/memory/project.js';
 import { AppConfig } from '../../src/config/index.js';
 import fs from 'fs';
 import path from 'path';
 
-describe('ProjectMemoryManager', () => {
+describe('project memory functions', () => {
   const testRoot = path.resolve('test_project_memory_temp');
+  const origCwd = process.cwd;
   const dummyConfig: AppConfig = {
     anthropicApiKey: undefined,
     openaiApiKey: 'dummy-openai-key',
@@ -20,6 +28,7 @@ describe('ProjectMemoryManager', () => {
   const mockFetch = vi.fn();
 
   beforeEach(() => {
+    process.cwd = () => testRoot;
     global.fetch = mockFetch;
     if (fs.existsSync(testRoot)) {
       fs.rmSync(testRoot, { recursive: true, force: true });
@@ -27,6 +36,7 @@ describe('ProjectMemoryManager', () => {
   });
 
   afterEach(() => {
+    process.cwd = origCwd;
     vi.restoreAllMocks();
     if (fs.existsSync(testRoot)) {
       fs.rmSync(testRoot, { recursive: true, force: true });
@@ -34,22 +44,16 @@ describe('ProjectMemoryManager', () => {
   });
 
   it('should load, append, and record decisions in memory.md', async () => {
-    const manager = new ProjectMemoryManager(dummyConfig, testRoot);
-
-    // Should return empty string for non-existent memory
-    let memory = await manager.loadMemory();
+    let memory = await loadMemory(testRoot);
     expect(memory).toBe('');
 
-    // Append memory
-    await manager.appendMemory('Decided to use vitest.');
-    memory = await manager.loadMemory();
+    await appendMemory('Decided to use vitest.', testRoot);
+    memory = await loadMemory(testRoot);
     expect(memory).toContain('Decided to use vitest.');
   });
 
   it('should read and write file index in index.json', async () => {
-    const manager = new ProjectMemoryManager(dummyConfig, testRoot);
-
-    let index = await manager.loadIndex();
+    let index = await loadIndex(testRoot);
     expect(index).toEqual({});
 
     const entry = {
@@ -59,8 +63,8 @@ describe('ProjectMemoryManager', () => {
       lastModified: 10002003,
     };
 
-    await manager.saveIndex({ 'src/main.ts': entry });
-    index = await manager.loadIndex();
+    await saveIndex({ 'src/main.ts': entry }, testRoot);
+    index = await loadIndex(testRoot);
     expect(index['src/main.ts']).toEqual(entry);
   });
 
@@ -78,18 +82,18 @@ describe('ProjectMemoryManager', () => {
       }),
     });
 
-    const manager = new ProjectMemoryManager(dummyConfig, testRoot);
-    const summary = await manager.createSessionSummary([
-      { role: 'user', content: 'Say hello' },
-      { role: 'assistant', content: 'Hello there' },
-    ]);
+    const summary = await createSessionSummary(
+      [
+        { role: 'user' as const, content: 'Say hello' },
+        { role: 'assistant' as const, content: 'Hello there' },
+      ],
+      dummyConfig
+    );
 
     expect(summary).toBe('Auto generated session summary text.');
 
-    // Save summary
-    await manager.saveSessionSummary(summary);
+    await saveSessionSummary(summary, testRoot);
 
-    // Check if file was saved under .agent/sessions/
     const sessionsDir = path.join(testRoot, '.agent', 'sessions');
     expect(fs.existsSync(sessionsDir)).toBe(true);
 
