@@ -20,6 +20,7 @@ import { readPromptSync, readTemplateSync } from '../config/prompts.js';
 import { TurnMetrics, AgentOptions, ProgressCallback } from './types.js';
 import { buildCalibrationNote } from './calibration.js';
 import { routeModelAlias } from './router.js';
+import { detectHostEnvironment } from './environment.js';
 
 export class AgentOrchestrator {
   private config: AppConfig;
@@ -46,10 +47,7 @@ export class AgentOrchestrator {
     this.onConfirmDangerousTool = options.onConfirmDangerousTool;
     this.projectMemory = new ProjectMemoryManager(this.config);
     
-    const platform = process.platform;
-    const shellHint = platform === 'win32'
-      ? 'Windows — use cmd-compatible commands (dir, del, if exist) or explicit `powershell -Command "..."` for anything else'
-      : 'POSIX — use standard Unix commands (ls, rm, &&)';
+    const { platform, shellHint } = detectHostEnvironment();
     
     let basePrompt = options.systemPrompt || readPromptSync('agent_system.txt');
     try {
